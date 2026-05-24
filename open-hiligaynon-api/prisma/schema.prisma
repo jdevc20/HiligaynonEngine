@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model Sentence {
+  id          String   @id @default(uuid())
+
+  english     String
+  hiligaynon  String
+
+  normalizedEnglish   String?
+  normalizedHiligaynon String?
+
+  status      String @default("pending") 
+  // pending | verified | rejected
+
+  upVotes     Int @default(0)
+  downVotes   Int @default(0)
+
+  tokens      Token[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Token {
+  id          String @id @default(uuid())
+
+  sentenceId  String
+  sentence    Sentence @relation(fields: [sentenceId], references: [id])
+
+  tokenOrder  Int
+  text        String
+
+  normalized  String?
+  root        String?
+  pos         String? // noun, verb, etc.
+
+  createdAt   DateTime @default(now())
+}
