@@ -1,7 +1,8 @@
-import { Prisma, Sentence } from "../generated/prisma/browser.js";
+import { Prisma } from "@prisma/client";
+import { Sentence } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 
-/**
+/**W
  * Advanced Normalization:
  * - Lowercases and trims.
  * - Strips punctuation EXCEPT hyphens and apostrophes (critical for 
