@@ -1,0 +1,72 @@
+{
+  "info": {
+    "name": "Hiligaynon Sentence API",
+    "_postman_id": "8b2c3f5a-1111-4444-9999-abcdef123456",
+    "description": "CRUD API for sentences (English - Hiligaynon)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get All Sentences",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/sentences?page=1&limit=50&search=",
+          "host": ["{{baseUrl}}"],
+          "path": ["sentences"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "50" },
+            { "key": "search", "value": "" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Sentence By ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/sentences/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["sentences", ":id"]
+        }
+      }
+    },
+    {
+      "name": "Create Sentence",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"english\": \"Good morning\",\n  \"hiligaynon\": \"Maayong aga\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/sentences",
+          "host": ["{{baseUrl}}"],
+          "path": ["sentences"]
+        }
+      }
+    },
+    {
+      "name": "Delete Sentence",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/sentences/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["sentences", ":id"]
+        }
+      }
+    }
+  ]
+}
