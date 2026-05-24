@@ -1,33 +1,16 @@
-import express from "express";
-import cors from "cors";
+import { Router } from "express";
+import {
+  createSentence,
+  getSentences,
+  getSentenceById,
+  deleteSentence
+} from "../controllers/sentence.controller.js";
 
-import sentenceRoutes from "./routes/sentence.routes";
+const router = Router();
 
-const app = express();
+router.get("/", getSentences);
+router.get("/:id", getSentenceById);
+router.post("/", createSentence);
+router.delete("/:id", deleteSentence);
 
-/**
- * Middleware
- */
-app.use(
-  cors({
-    origin: "*", // tighten this later when you add frontend
-    methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-app.use(express.json());
-
-/**
- * Routes
- */
-app.use("/api/sentences", sentenceRoutes);
-
-/**
- * Health check (important for Render)
- */
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
-});
-
-export default app;
+export default router;
