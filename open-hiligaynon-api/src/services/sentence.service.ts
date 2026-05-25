@@ -85,3 +85,20 @@ export const deleteSentence = async (id: string): Promise<Sentence> => {
     where: { id }
   });
 };
+
+import { exec } from "child_process";
+import util from "util";
+const execPromise = util.promisify(exec);
+/**
+ * Runs production-safe Prisma migrations
+ */
+export const runMigrations = async (): Promise<string> => {
+  try {
+    const { stdout, stderr } = await execPromise(
+      "npx prisma migrate deploy"
+    );
+
+    return stdout || stderr || "Migration completed";
+  } catch (error: any) {
+    throw new Error(`Migration failed: ${error.message}`);
+  }

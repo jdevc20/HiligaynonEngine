@@ -144,3 +144,18 @@ export const deleteSentence = async (req: Request, res: Response) => {
   }
 };
 
+export const migrateDatabase = async (req: Request, res: Response) => {
+  try {
+    const result = await sentenceService.runMigrations();
+
+    res.status(200).json({
+      message: "Migration executed successfully",
+      output: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Migration failed",
+      error: error.message,
+    });
+  }
+};
