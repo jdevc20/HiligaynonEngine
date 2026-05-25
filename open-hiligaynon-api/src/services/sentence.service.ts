@@ -102,3 +102,4 @@ export const runMigrations = async (): Promise<string> => {
   } catch (error: any) {
     throw new Error(`Migration failed: ${error.message}`);
   }
+};
