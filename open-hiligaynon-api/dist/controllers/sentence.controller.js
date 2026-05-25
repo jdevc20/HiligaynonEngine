@@ -57,7 +57,7 @@ export const createSentence = async (req, res) => {
         if (error.code === "P2002") {
             return res.status(409).json({ error: "A sentence with this text already exists" });
         }
-        return res.status(500).json({ error: "Failed to create the sentence" });
+        return res.status(500).json({ error: "Failed to create the sentence",  detailed_error: error.message });
     }
 };
 export const deleteSentence = async (req, res) => {
