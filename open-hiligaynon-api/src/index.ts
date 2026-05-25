@@ -1,31 +1,59 @@
 import "dotenv/config";
 import app from "./app.js";
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
+const PORT = Number(process.env.PORT) || 5000;
+const HOST = "0.0.0.0";
 
-// Optional: validate port
-if (Number.isNaN(PORT)) {
-  throw new Error("Invalid PORT value in environment variables");
+// Validate port
+if (!Number.isFinite(PORT) || PORT <= 0) {
+  console.error("❌ Invalid PORT:", process.env.PORT);
+  process.exit(1);
 }
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`🚀 API running on port ${PORT}`);
-});
+let server: any;
 
-// Graceful shutdown handling (important for Render / production)
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down gracefully...");
-  server.close(() => {
-    console.log("Server closed.");
-    process.exit(0);
-  });
-});
+async function startServer() {
+  try {
+    console.log("🚀 Starting server...");
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received. Shutting down gracefully...");
-  server.close(() => {
-    console.log("Server closed.");
+    server = app.listen(PORT, HOST, () => {
+      console.log(`✅ Server running at http://${HOST}:${PORT}`);
+      console.log(`📡 Health check: http://${HOST}:${PORT}/health`);
+    });
+
+    // Handle server errors
+    server.on("error", (err: any) => {
+      console.error("❌ Server error:", err);
+      process.exit(1);
+    });
+
+  } catch (err) {
+    console.error("❌ Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+async function shutdown(signal: string) {
+  console.log(`\n📴 ${signal} received. Shutting down...`);
+
+  if (server) {
+    server.close(() => {
+      console.log("🧹 HTTP server closed.");
+      process.exit(0);
+    });
+
+    // Force shutdown after timeout (Render safety)
+    setTimeout(() => {
+      console.warn("⚠️ Forced shutdown after timeout");
+      process.exit(1);
+    }, 10000);
+  } else {
     process.exit(0);
-  });
-});
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+startServer();
