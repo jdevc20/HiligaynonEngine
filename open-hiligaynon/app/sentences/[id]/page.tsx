@@ -97,7 +97,7 @@ export default function EditSentencePage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-50 dark:bg-zinc-950 font-sans py-10 px-4 sm:px-6 transition-colors">
+    <div className="min-h-[dvh] bg-zinc-50 dark:bg-zinc-950 font-sans py-10 px-4 sm:px-6 transition-colors">
       <div className="max-w-2xl mx-auto">
         
         <header className="flex justify-between items-center mb-8">
