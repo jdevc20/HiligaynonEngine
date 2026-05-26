@@ -13,30 +13,38 @@ const normalize = (text: string): string => {
   return text
     .toLowerCase()
     .trim()
-    .replace(/[.,/#!$%^&*;:{}=\_`~()]/g, "") // Removed ' and - from the strip list
+    .replace(/[.,/#!$%^&*;:{}=\_`~()]/g, "")
     .replace(/\s{2,}/g, " ");
 };
 
-// Parameter Interfaces
+// 📈 Extended to support filtering by semantic and sentiment values
 export interface SentenceQueryParams {
   skip?: number;
   take?: number;
   search?: string;
+  sentiment?: number;    // Filter by 0 (Neg), 1 (Neu), 2 (Pos)
+  isSarcastic?: boolean; // Isolate sarcastic training sets
+  status?: string;       // pending | verified | rejected
 }
 
 // Dynamic Search + Paginated Transaction Fetch
 export const getAllSentences = async (params: SentenceQueryParams = {}) => {
-  const { skip = 0, take = 50, search } = params;
+  const { skip = 0, take = 50, search, sentiment, isSarcastic, status } = params;
 
-  // Build a dynamic search query if a search term is provided
-  const where: Prisma.SentenceWhereInput = search
-    ? {
-        OR: [
-          { normalizedEnglish: { contains: normalize(search) } },
-          { normalizedHiligaynon: { contains: normalize(search) } }
-        ]
-      }
-    : {};
+  // Build a highly targeted query object dynamically
+  const where: Prisma.SentenceWhereInput = {};
+
+  if (search) {
+    where.OR = [
+      { normalizedEnglish: { contains: normalize(search) } },
+      { normalizedHiligaynon: { contains: normalize(search) } }
+    ];
+  }
+
+  // Inject exact analytic filter matches if requested by the client pipeline
+  if (sentiment !== undefined) where.sentiment = sentiment;
+  if (isSarcastic !== undefined) where.isSarcastic = isSarcastic;
+  if (status !== undefined) where.status = status;
 
   // The $transaction pattern: Fetches data AND total count concurrently
   const [sentences, totalCount] = await prisma.$transaction([
@@ -45,8 +53,11 @@ export const getAllSentences = async (params: SentenceQueryParams = {}) => {
       skip,
       take,
       orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { tokens: true } } // Safely includes light metadata summary
+      }
     }),
-    prisma.sentence.count({ where }) // Required for frontend pagination!
+    prisma.sentence.count({ where })
   ]);
 
   return {
@@ -62,10 +73,14 @@ export const getSentenceById = async (id: string) => {
   });
 };
 
-// Use a DTO (Data Transfer Object) instead of loose parameters
+// 🧠 DTO expanded to map semantic attributes during early record ingestions
 type CreateSentenceInput = {
   english: string;
   hiligaynon: string;
+  sentiment?: number;
+  intent?: string;
+  isSarcastic?: boolean;
+  status?: string;
 };
 
 export const createSentence = async (data: CreateSentenceInput): Promise<Sentence> => {
@@ -74,7 +89,11 @@ export const createSentence = async (data: CreateSentenceInput): Promise<Sentenc
       english: data.english,
       hiligaynon: data.hiligaynon,
       normalizedEnglish: normalize(data.english),
-      normalizedHiligaynon: normalize(data.hiligaynon)
+      normalizedHiligaynon: normalize(data.hiligaynon),
+      sentiment: data.sentiment ?? 1,
+      intent: data.intent,
+      isSarcastic: data.isSarcastic ?? false,
+      status: data.status ?? "pending"
     }
   });
 };
@@ -85,14 +104,75 @@ export const deleteSentence = async (id: string): Promise<Sentence> => {
   });
 };
 
-// 🆕 NEW: Highly Optimized Bulk Delete Method
+// Highly Optimized Bulk Delete Method (Cascade deletes dependent tokens automatically)
 export const deleteSentencesBulk = async (ids: string[]): Promise<Prisma.BatchPayload> => {
   return prisma.sentence.deleteMany({
     where: {
-      id: {
-        in: ids
-      }
+      id: { in: ids }
     }
+  });
+};
+
+export interface CastVoteInput {
+  sentenceId: string;
+  ipAddress: string;
+  type: "UP" | "DOWN";
+  userId?: string;
+}
+
+/**
+ * ⚡ ATOMIC VOTING ENGINE
+ * Prevents network duplicate injection attacks and handles counter toggling safely
+ */
+export const castVote = async (data: CastVoteInput): Promise<Sentence> => {
+  const { sentenceId, ipAddress, type, userId } = data;
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Verify if this exact network footprint has already logged a vote here
+    const existingVote = await tx.vote.findUnique({
+      where: {
+        sentenceId_ipAddress: { sentenceId, ipAddress }
+      }
+    });
+
+    if (existingVote) {
+      // Case A: User clicked the same action button again -> Treat as toggle-off (Undo vote)
+      if (existingVote.type === type) {
+        await tx.vote.delete({ where: { id: existingVote.id } });
+        return tx.sentence.update({
+          where: { id: sentenceId },
+          data: {
+            [type === "UP" ? "upVotes" : "downVotes"]: { decrement: 1 }
+          }
+        });
+      }
+
+      // Case B: User switched their position (e.g., Changed Downvote directly to Upvote)
+      await tx.vote.update({
+        where: { id: existingVote.id },
+        data: { type }
+      });
+
+      return tx.sentence.update({
+        where: { id: sentenceId },
+        data: {
+          upVotes: { [type === "UP" ? "increment" : "decrement"]: 1 },
+          downVotes: { [type === "DOWN" ? "increment" : "decrement"]: 1 }
+        }
+      });
+    }
+
+    // Case C: Fresh completely untracked vote
+    await tx.vote.create({
+      data: { sentenceId, ipAddress, type, userId }
+    });
+
+    return tx.sentence.update({
+      where: { id: sentenceId },
+      data: {
+        [type === "UP" ? "upVotes" : "downVotes"]: { increment: 1 }
+      }
+    });
   });
 };
 

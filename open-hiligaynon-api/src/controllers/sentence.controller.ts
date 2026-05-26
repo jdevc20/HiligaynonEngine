@@ -6,24 +6,33 @@ export const getSentences = async (req: Request, res: Response) => {
     const rawPage = req.query.page;
     const rawLimit = req.query.limit;
     const rawSearch = req.query.search;
+    const rawSentiment = req.query.sentiment;
+    const rawIsSarcastic = req.query.isSarcastic;
+    const rawStatus = req.query.status;
 
-    // Added radix 10 for safe parsing
+    // Radix parameters and basic data transformations
     const page = typeof rawPage === "string" ? parseInt(rawPage, 10) : 1;
     const limit = typeof rawLimit === "string" ? parseInt(rawLimit, 10) : 50;
     const search = typeof rawSearch === "string" ? rawSearch : undefined;
+    const status = typeof rawStatus === "string" ? rawStatus : undefined;
+    
+    // Evaluate explicit filters safely
+    const sentiment = typeof rawSentiment === "string" ? parseInt(rawSentiment, 10) : undefined;
+    const isSarcastic = typeof rawIsSarcastic === "string" ? rawIsSarcastic === "true" : undefined;
 
-    // Validation to prevent NaN errors in the database query
-    if (isNaN(page) || page < 1) {
-        return res.status(400).json({ 
-            error: "Invalid pagination parameter", 
-            details: "'page' must be a valid positive integer." 
-        });
+    // Validation layers to safeguard database pipelines
+    if (isNaN(page) || page < 1 || isNaN(limit) || limit < 1) {
+      return res.status(400).json({ 
+        error: "Invalid pagination parameter", 
+        details: "'page' and 'limit' must be positive integers." 
+      });
     }
-    if (isNaN(limit) || limit < 1) {
-        return res.status(400).json({ 
-            error: "Invalid pagination parameter", 
-            details: "'limit' must be a valid positive integer." 
-        });
+
+    if (sentiment !== undefined && (isNaN(sentiment) || sentiment < 0 || sentiment > 2)) {
+      return res.status(400).json({
+        error: "Invalid analytics parameter",
+        details: "'sentiment' must be an integer: 0 (Negative), 1 (Neutral), or 2 (Positive)."
+      });
     }
 
     const skip = (page - 1) * limit;
@@ -32,14 +41,17 @@ export const getSentences = async (req: Request, res: Response) => {
       skip,
       take: limit,
       search,
+      sentiment,
+      isSarcastic,
+      status
     });
 
     return res.status(200).json(result);
   } catch (error: any) {
     console.error("[getSentences Error]:", error);
     return res.status(500).json({ 
-        error: "Failed to fetch sentences",
-        details: error?.message || "An unexpected error occurred."
+      error: "Failed to fetch sentences",
+      details: error?.message || "An unexpected error occurred."
     });
   }
 };
@@ -51,8 +63,8 @@ export const getSentenceById = async (req: Request, res: Response) => {
 
     if (!id) {
       return res.status(400).json({ 
-          error: "Missing required parameter",
-          details: "A valid sentence ID is required."
+        error: "Missing required parameter",
+        details: "A valid sentence ID is required."
       });
     }
 
@@ -60,8 +72,8 @@ export const getSentenceById = async (req: Request, res: Response) => {
 
     if (!data) {
       return res.status(404).json({ 
-          error: "Resource not found",
-          details: `No sentence found with the ID: ${id}`
+        error: "Resource not found",
+        details: `No sentence found with the ID: ${id}`
       });
     }
 
@@ -69,15 +81,15 @@ export const getSentenceById = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("[getSentenceById Error]:", error);
     return res.status(500).json({ 
-        error: "Failed to fetch the sentence",
-        details: error?.message || "An unexpected error occurred."
+      error: "Failed to fetch the sentence",
+      details: error?.message || "An unexpected error occurred."
     });
   }
 };
 
 export const createSentence = async (req: Request, res: Response) => {
   try {
-    const { english, hiligaynon } = req.body;
+    const { english, hiligaynon, sentiment, intent, isSarcastic, status } = req.body;
 
     if (!english || !hiligaynon) {
       return res.status(400).json({
@@ -89,24 +101,27 @@ export const createSentence = async (req: Request, res: Response) => {
     const data = await sentenceService.createSentence({
       english,
       hiligaynon,
+      sentiment: sentiment !== undefined ? parseInt(sentiment, 10) : undefined,
+      intent,
+      isSarcastic: isSarcastic === true || isSarcastic === "true",
+      status
     });
 
     return res.status(201).json({ data });
   } catch (error: any) {
     console.error("[createSentence Error]:", error);
     
-    // Explicitly handle Prisma unique constraint violations
     if (error?.code === "P2002") {
-        return res.status(409).json({ 
-            error: "Conflict", 
-            details: "A sentence with this text already exists.",
-            code: error.code
-        });
+      return res.status(409).json({ 
+        error: "Conflict", 
+        details: "A sentence with this text already exists.",
+        code: error.code
+      });
     }
 
     return res.status(500).json({ 
-        error: "Failed to create the sentence",
-        details: error?.message || "An unexpected error occurred." 
+      error: "Failed to create the sentence",
+      details: error?.message || "An unexpected error occurred." 
     });
   }
 };
@@ -118,8 +133,8 @@ export const deleteSentence = async (req: Request, res: Response) => {
 
     if (!id) {
       return res.status(400).json({ 
-          error: "Missing required parameter",
-          details: "A valid sentence ID is required."
+        error: "Missing required parameter",
+        details: "A valid sentence ID is required."
       });
     }
 
@@ -131,20 +146,19 @@ export const deleteSentence = async (req: Request, res: Response) => {
 
     if (error?.code === "P2025") {
       return res.status(404).json({ 
-          error: "Resource not found",
-          details: "Cannot delete because the specified sentence does not exist.",
-          code: error.code
+        error: "Resource not found",
+        details: "Cannot delete because the specified sentence does not exist.",
+        code: error.code
       });
     }
 
     return res.status(500).json({ 
-        error: "Failed to delete the sentence",
-        details: error?.message || "An unexpected error occurred."
+      error: "Failed to delete the sentence",
+      details: error?.message || "An unexpected error occurred."
     });
   }
 };
 
-// 🆕 NEW: Bulk Delete Controller Method
 export const deleteSentencesBulk = async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
@@ -160,12 +174,48 @@ export const deleteSentencesBulk = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Sentences deleted successfully",
-      deletedCount: result.count // 👈 Changed to strictly result.count
+      deletedCount: result.count
     });
   } catch (error: any) {
     console.error("[deleteSentencesBulk Error]:", error);
     return res.status(500).json({
       error: "Failed to perform bulk deletion",
+      details: error?.message || "An unexpected error occurred."
+    });
+  }
+};
+
+// 🆕 NEW: Thread-safe voting controller endpoint
+export const castVote = async (req: Request, res: Response) => {
+  try {
+    const { sentenceId, type, userId } = req.body;
+    
+    // Fallbacks to extract network identifier accurately across reverse proxies (e.g., Nginx, Cloudflare)
+    const ipAddress = 
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0].trim() || 
+      req.ip || 
+      req.socket.remoteAddress || 
+      "anonymous_client";
+
+    if (!sentenceId || !type || (type !== "UP" && type !== "DOWN")) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "'sentenceId' is required, and 'type' must be explicitly 'UP' or 'DOWN'."
+      });
+    }
+
+    const updatedSentence = await sentenceService.castVote({
+      sentenceId,
+      ipAddress,
+      type,
+      userId
+    });
+
+    return res.status(200).json({ data: updatedSentence });
+  } catch (error: any) {
+    console.error("[castVote Error]:", error);
+    return res.status(500).json({
+      error: "Failed to register vote",
       details: error?.message || "An unexpected error occurred."
     });
   }
@@ -186,3 +236,4 @@ export const migrateDatabase = async (req: Request, res: Response) => {
     });
   }
 };
+
