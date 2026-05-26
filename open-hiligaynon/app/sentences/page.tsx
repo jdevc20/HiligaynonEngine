@@ -306,19 +306,28 @@ export default function SentencesPage() {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0 text-xs">
-                        {/* 🧠 Sentiment Output Tag */}
+                        {/* 🧠 COLUMN 1: Sentiment Output Tag */}
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getSentimentBadgeStyles(sentence.sentiment)}`}>
                           {getSentimentLabel(sentence.sentiment)}
-                          {sentence.isSarcastic && <span className="ml-1 text-amber-500">😏</span>}
                         </span>
 
+                        {/* 🎭 COLUMN 2: Explicit Sarcasm / Literal Tone Column */}
+                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
+                          sentence.isSarcastic 
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200/60 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40' 
+                            : 'bg-purple-50 text-purple-700 border border-purple-200/60 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/40'
+                        }`}>
+                          {sentence.isSarcastic ? "😏 Sarcastic" : "📝 Literal"}
+                        </span>
+
+                        {/* 📋 COLUMN 3: Verification Status */}
                         <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider
                           ${sentence.status === 'verified' || sentence.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'}`}
                         >
                           {sentence.status}
                         </span>
                         
-                        {/* ⚡ ACTIVE ATOMIC VOTING INTERACTION INTERFACE */}
+                        {/* ⚡ COLUMN 4: Active Atomic Voting Interface */}
                         <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800 p-0.5 rounded border border-zinc-200/40 dark:border-zinc-700">
                           <button
                             disabled={votingId !== null}
@@ -336,6 +345,7 @@ export default function SentencesPage() {
                           </button>
                         </div>
 
+                        {/* ⚙️ COLUMN 5: Target Record Operations */}
                         <div className="flex items-center gap-3 border-l border-zinc-200 dark:border-zinc-700 pl-3">
                           <Link href={`/sentences/${sentence.id}`} className="text-blue-600 hover:underline">
                             View
@@ -409,4 +419,3 @@ export default function SentencesPage() {
     </div>
   );
 }
-
