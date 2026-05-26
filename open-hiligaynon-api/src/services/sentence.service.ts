@@ -2,11 +2,11 @@ import { Prisma } from "@prisma/client";
 import { Sentence } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 
-/**W
+/**
  * Advanced Normalization:
  * - Lowercases and trims.
  * - Strips punctuation EXCEPT hyphens and apostrophes (critical for 
- *   Hiligaynon words like "adlaw-adlaw" or "wala'y").
+ * Hiligaynon words like "adlaw-adlaw" or "wala'y").
  * - Collapses multiple spaces.
  */
 const normalize = (text: string): string => {
@@ -17,14 +17,14 @@ const normalize = (text: string): string => {
     .replace(/\s{2,}/g, " ");
 };
 
-// 1. Parameter Interfaces: Much cleaner than passing 5 different arguments
+// Parameter Interfaces
 export interface SentenceQueryParams {
   skip?: number;
   take?: number;
   search?: string;
 }
 
-// 2. Explicit Return Types & Transactions
+// Dynamic Search + Paginated Transaction Fetch
 export const getAllSentences = async (params: SentenceQueryParams = {}) => {
   const { skip = 0, take = 50, search } = params;
 
@@ -38,7 +38,7 @@ export const getAllSentences = async (params: SentenceQueryParams = {}) => {
       }
     : {};
 
-  // 3. The $transaction pattern: Fetches data AND total count concurrently
+  // The $transaction pattern: Fetches data AND total count concurrently
   const [sentences, totalCount] = await prisma.$transaction([
     prisma.sentence.findMany({
       where,
@@ -55,15 +55,14 @@ export const getAllSentences = async (params: SentenceQueryParams = {}) => {
   };
 };
 
-// 4. Return types (Promise<Sentence | null>) make TypeScript strictly enforce your code
 export const getSentenceById = async (id: string) => {
   return prisma.sentence.findUnique({
     where: { id },
-    include: { tokens: true } // Usually, you want the tokens when viewing one sentence
+    include: { tokens: true } // Keeps relationship lookups intact
   });
 };
 
-// 5. Use a DTO (Data Transfer Object) instead of loose parameters
+// Use a DTO (Data Transfer Object) instead of loose parameters
 type CreateSentenceInput = {
   english: string;
   hiligaynon: string;
@@ -86,9 +85,21 @@ export const deleteSentence = async (id: string): Promise<Sentence> => {
   });
 };
 
+// 🆕 NEW: Highly Optimized Bulk Delete Method
+export const deleteSentencesBulk = async (ids: string[]): Promise<Prisma.BatchPayload> => {
+  return prisma.sentence.deleteMany({
+    where: {
+      id: {
+        in: ids
+      }
+    }
+  });
+};
+
 import { exec } from "child_process";
 import util from "util";
 const execPromise = util.promisify(exec);
+
 /**
  * Runs production-safe Prisma migrations
  */

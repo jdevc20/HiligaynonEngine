@@ -144,6 +144,33 @@ export const deleteSentence = async (req: Request, res: Response) => {
   }
 };
 
+// 🆕 NEW: Bulk Delete Controller Method
+export const deleteSentencesBulk = async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "The 'ids' field must be a non-empty array of strings."
+      });
+    }
+
+    const result = await sentenceService.deleteSentencesBulk(ids);
+
+    return res.status(200).json({
+      message: "Sentences deleted successfully",
+      deletedCount: result.count // 👈 Changed to strictly result.count
+    });
+  } catch (error: any) {
+    console.error("[deleteSentencesBulk Error]:", error);
+    return res.status(500).json({
+      error: "Failed to perform bulk deletion",
+      details: error?.message || "An unexpected error occurred."
+    });
+  }
+};
+
 export const migrateDatabase = async (req: Request, res: Response) => {
   try {
     const result = await sentenceService.runMigrations();

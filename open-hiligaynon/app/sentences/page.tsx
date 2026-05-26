@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { Sentence } from "@/types/sentence";
 import { SentenceService } from "@/services/sentenceService";
 
+// Helper function for Windowed Pagination
+const getVisiblePages = (current: number, total: number) => {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 3) return [1, 2, 3, 4, "...", total];
+  if (current >= total - 2) return [1, "...", total - 3, total - 2, total - 1, total];
+  return [1, "...", current - 1, current, current + 1, "...", total];
+};
+
 export default function SentencesPage() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
+  
+  // 1. Split Search State (Immediate UI vs API Trigger)
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   
   // Pagination & API Meta State
   const [page, setPage] = useState(1);
@@ -23,12 +34,28 @@ export default function SentencesPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  const loadSentences = async () => {
+  // 2. Debounce Effect: Only update the API search term after typing stops
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1); // Reset to first page on new search
+    }, 300); // 300ms delay
+    
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // 3. Centralized Fetch Logic using useCallback
+  const loadSentences = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await SentenceService.list({ page, limit, search: searchQuery }); 
+      // Pass debouncedSearch to let the database handle the heavy lifting
+      const response = await SentenceService.list({ 
+        page, 
+        limit, 
+        search: debouncedSearch 
+      }); 
       
       if (response && Array.isArray(response.items)) {
         setSentences(response.items);
@@ -42,7 +69,13 @@ export default function SentencesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, debouncedSearch]);
+
+  // Fetch data when dependencies change
+  useEffect(() => {
+    loadSentences();
+    setSelectedIds([]); // Clear selection on new data load
+  }, [loadSentences]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this translation?")) return;
@@ -50,9 +83,9 @@ export default function SentencesPage() {
     try {
       setDeletingId(id);
       await SentenceService.remove(id); 
-      setSentences((prev) => prev.filter((s) => s.id !== id));
-      setMeta((prev) => ({ ...prev, total: prev.total - 1 }));
-      setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id)); // Remove from selection if selected
+      
+      // Re-fetch to ensure pagination stays completely accurate
+      await loadSentences();
     } catch (err) {
       console.error("Failed to delete sentence:", err);
       alert("An error occurred while trying to delete the sentence.");
@@ -69,10 +102,10 @@ export default function SentencesPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredSentences.length && filteredSentences.length > 0) {
+    if (selectedIds.length === sentences.length && sentences.length > 0) {
       setSelectedIds([]); // Deselect all
     } else {
-      setSelectedIds(filteredSentences.map((s) => s.id)); // Select all visible
+      setSelectedIds(sentences.map((s) => s.id)); // Select all currently visible
     }
   };
 
@@ -81,11 +114,20 @@ export default function SentencesPage() {
 
     try {
       setIsBulkDeleting(true);
-      // Execute multiple delete requests concurrently
-      await Promise.all(selectedIds.map(id => SentenceService.remove(id)));
       
-      setSentences((prev) => prev.filter((s) => !selectedIds.includes(s.id)));
-      setMeta((prev) => ({ ...prev, total: prev.total - selectedIds.length }));
+      // 4. Optimized Bulk Delete
+      // Requires: SentenceService.removeBulk(selectedIds) implementation on your backend.
+      // If not available, use chunking instead of Promise.all mapping.
+      if (SentenceService.removeBulk) {
+        await SentenceService.removeBulk(selectedIds);
+      } else {
+        // Fallback if no bulk API exists (not ideal for 100k scale, but prevents total browser lock)
+        for (const id of selectedIds) {
+          await SentenceService.remove(id);
+        }
+      }
+      
+      await loadSentences(); // Re-fetch to keep state perfectly synced
       setSelectedIds([]);
     } catch (err) {
       console.error("Failed to execute bulk delete:", err);
@@ -95,24 +137,8 @@ export default function SentencesPage() {
     }
   };
 
-  useEffect(() => {
-    loadSentences();
-    setSelectedIds([]); // Clear selection on page change
-  }, [page]);
-
-  useEffect(() => {
-    if (searchQuery) setPage(1);
-    setSelectedIds([]); // Clear selection on search
-  }, [searchQuery]);
-
-  const filteredSentences = sentences.filter(
-    (s) =>
-      s.english.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.hiligaynon.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const totalPages = Math.max(1, Math.ceil(meta.total / limit));
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const pageNumbers = getVisiblePages(page, totalPages);
 
   return (
     <div className="h-[100dvh] flex flex-col bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 transition-colors py-6 px-4 sm:px-6 overflow-hidden">
@@ -131,7 +157,6 @@ export default function SentencesPage() {
           </div>
           
           <div className="flex items-center gap-3 shrink-0">
-            {/* Conditional Bulk Delete Button */}
             {selectedIds.length > 0 && (
               <button
                 onClick={handleBulkDelete}
@@ -174,13 +199,12 @@ export default function SentencesPage() {
               <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 <div className="flex flex-col gap-2">
                   
-                  {/* Select All Controls */}
-                  {filteredSentences.length > 0 && (
+                  {sentences.length > 0 && (
                     <div className="flex items-center gap-3 px-3 py-2 mb-2 rounded-lg bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
                       <input
                         type="checkbox"
                         id="selectAll"
-                        checked={selectedIds.length === filteredSentences.length && filteredSentences.length > 0}
+                        checked={selectedIds.length === sentences.length && sentences.length > 0}
                         onChange={toggleSelectAll}
                         className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
@@ -190,7 +214,8 @@ export default function SentencesPage() {
                     </div>
                   )}
 
-                  {filteredSentences.map((sentence) => (
+                  {/* Removed client-side .filter() -> Map directly over API results */}
+                  {sentences.map((sentence) => (
                     <article
                       key={sentence.id}
                       className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border transition-all group ${
@@ -200,7 +225,6 @@ export default function SentencesPage() {
                       }`}
                     >
                       <div className="flex-1 flex items-center gap-3 overflow-hidden">
-                        {/* Checkbox for Row */}
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(sentence.id)}
@@ -245,7 +269,7 @@ export default function SentencesPage() {
                     </article>
                   ))}
                   
-                  {filteredSentences.length === 0 && (
+                  {sentences.length === 0 && (
                     <p className="text-center text-sm text-zinc-500 py-10">No translations found.</p>
                   )}
                 </div>
@@ -266,19 +290,23 @@ export default function SentencesPage() {
                   </button>
 
                   <div className="hidden sm:flex gap-1">
-                    {pageNumbers.map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => setPage(num)}
-                        disabled={page === num}
-                        className={`w-8 h-8 flex items-center justify-center text-xs font-medium rounded-md border 
-                          ${page === num 
-                            ? 'bg-blue-600 text-white border-blue-600 cursor-default' 
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                          }`}
-                      >
-                        {num}
-                      </button>
+                    {pageNumbers.map((num, idx) => (
+                      num === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="px-2 py-1 text-zinc-500">...</span>
+                      ) : (
+                        <button
+                          key={num}
+                          onClick={() => setPage(num as number)}
+                          disabled={page === num}
+                          className={`w-8 h-8 flex items-center justify-center text-xs font-medium rounded-md border 
+                            ${page === num 
+                              ? 'bg-blue-600 text-white border-blue-600 cursor-default' 
+                              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                            }`}
+                        >
+                          {num}
+                        </button>
+                      )
                     ))}
                   </div>
 
@@ -298,3 +326,4 @@ export default function SentencesPage() {
     </div>
   );
 }
+
