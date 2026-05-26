@@ -2,8 +2,15 @@ import * as sentenceApi from "@/lib/sentences";
 import type { Sentence } from "@/types/sentence";
 
 export const SentenceService = {
-  // 1. Parameters for pagination and search
-  async list(params?: { page?: number; limit?: number; search?: string }) {
+  // 1. Parameters expanded to support semantic filtering and pipeline extraction
+  async list(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sentiment?: number;    // 0 = Negative, 1 = Neutral, 2 = Positive
+    isSarcastic?: boolean;
+    status?: string;       // pending | verified | rejected
+  }) {
     return await sentenceApi.getSentences(params);
   },
 
@@ -12,8 +19,15 @@ export const SentenceService = {
     return await sentenceApi.getSentenceById(id);
   },
 
-  // 3. Type-safe configuration for creating records
-  async create(data: { english: string; hiligaynon: string }) {
+  // 3. Type-safe configuration supporting early analytical tagging during creation
+  async create(data: {
+    english: string;
+    hiligaynon: string;
+    sentiment?: number;
+    intent?: string | null; // Match the "string | null" type from the interface
+    isSarcastic?: boolean;
+    status?: Sentence["status"]; // 👈 References the strict union type automatically!
+  }) {
     return await sentenceApi.createSentence(data);
   },
 
@@ -25,8 +39,17 @@ export const SentenceService = {
     return await sentenceApi.updateSentence(id, data);
   },
 
-  // 🆕 NEW: Highly Optimized Bulk Removal API Call
+  // Highly Optimized Bulk Removal API Call
   async removeBulk(ids: string[]) {
     return await sentenceApi.deleteSentencesBulk(ids);
+  },
+
+  // 🆕 NEW: Triggers the thread-safe database voting state transition
+  async vote(data: {
+    sentenceId: string;
+    type: "UP" | "DOWN";
+    userId?: string;
+  }) {
+    return await sentenceApi.castVote(data);
   },
 };

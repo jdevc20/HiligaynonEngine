@@ -1,7 +1,7 @@
 import { api } from "./api";
 import type { Sentence } from "@/types/sentence";
 
-// Define the shape of your paginated API response
+// Shape of your paginated API response
 export interface PaginatedSentences {
   items: Sentence[];
   meta: {
@@ -12,15 +12,16 @@ export interface PaginatedSentences {
 }
 
 export const getSentences = async (
-  params?: { page?: number; limit?: number; search?: string }
+  params?: { 
+    page?: number; 
+    limit?: number; 
+    search?: string;
+    sentiment?: number;    // 0 = Negative, 1 = Neutral, 2 = Positive
+    isSarcastic?: boolean; // Filters for isolating training sets
+    status?: string;       // pending | verified | approved | rejected
+  }
 ): Promise<PaginatedSentences> => {
-  // Assuming 'api' is an Axios instance, it automatically converts the 'params' object into a query string (e.g., ?page=1&limit=30)
   const res = await api.get("/sentences", { params });
-  
-  // If your 'api' is a custom fetch wrapper that DOES NOT support the Axios { params } object, use this instead:
-  // const query = new URLSearchParams(params as Record<string, string>).toString();
-  // const res = await api.get(`/sentences?${query}`);
-
   return res.data; 
 };
 
@@ -33,31 +34,26 @@ export const createSentence = async (data: Partial<Sentence>) => {
   return api.post("/sentences", data);
 };
 
+export const updateSentence = async (id: string, data: Partial<Sentence>) => {
+  return api.patch(`/sentences/${id}`, data); 
+};
+
 export const deleteSentence = async (id: string) => {
   return api.delete(`/sentences/${id}`);
 };
 
-// Add this below your create and delete methods
-export const updateSentence = async (id: string, data: Partial<Sentence>) => {
-  // Uses PATCH or PUT depending on how your backend API is built
-  return api.patch(`/sentences/${id}`, data); 
+// Cleaned up to use your unified API instance instead of mixed raw fetch calls
+export const deleteSentencesBulk = async (ids: string[]) => {
+  const res = await api.post("/sentences/bulk-delete", { ids });
+  return res.data; // Returns { message, deletedCount }
 };
 
-// lib/sentences.ts (or wherever your raw fetch wrappers live)
-
-export async function deleteSentencesBulk(ids: string[]) {
-  const response = await fetch("/api/sentences/bulk-delete", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ids }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Failed to execute bulk deletion.");
-  }
-
-  return await response.json(); // Returns { message, deletedCount }
-}
+// 🆕 NEW: Dispatches vote event to the atomic tracking backend engine
+export const castVote = async (data: {
+  sentenceId: string;
+  type: "UP" | "DOWN";
+  userId?: string;
+}) => {
+  const res = await api.post("/sentences/vote", data);
+  return res.data; // Returns the updated Sentence object with new vote totals
+};

@@ -16,10 +16,15 @@ const getVisiblePages = (current: number, total: number) => {
 export default function SentencesPage() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
   
-  // 1. Split Search State (Immediate UI vs API Trigger)
+  // Split Search State (Immediate UI vs API Trigger)
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   
+  // 🧠 Dataset Pipeline Filters
+  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
+  const [sarcasmFilter, setSarcasmFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   // Pagination & API Meta State
   const [page, setPage] = useState(1);
   const limit = 30;
@@ -29,32 +34,40 @@ export default function SentencesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [votingId, setVotingId] = useState<string | null>(null);
   
   // Bulk Selection States
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  // 2. Debounce Effect: Only update the API search term after typing stops
+  // Debounce Effect: Only update the API search term after typing stops
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setPage(1); // Reset to first page on new search
-    }, 300); // 300ms delay
+    }, 300);
     
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // 3. Centralized Fetch Logic using useCallback
+  // Reset pagination context to page 1 whenever database parameters shift
+  useEffect(() => {
+    setPage(1);
+  }, [sentimentFilter, sarcasmFilter, statusFilter]);
+
+  // Centralized Fetch Logic using useCallback
   const loadSentences = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Pass debouncedSearch to let the database handle the heavy lifting
       const response = await SentenceService.list({ 
         page, 
         limit, 
-        search: debouncedSearch 
+        search: debouncedSearch,
+        sentiment: sentimentFilter !== "all" ? parseInt(sentimentFilter, 10) : undefined,
+        isSarcastic: sarcasmFilter !== "all" ? sarcasmFilter === "true" : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined
       }); 
       
       if (response && Array.isArray(response.items)) {
@@ -69,7 +82,7 @@ export default function SentencesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch]);
+  }, [page, limit, debouncedSearch, sentimentFilter, sarcasmFilter, statusFilter]);
 
   // Fetch data when dependencies change
   useEffect(() => {
@@ -83,14 +96,31 @@ export default function SentencesPage() {
     try {
       setDeletingId(id);
       await SentenceService.remove(id); 
-      
-      // Re-fetch to ensure pagination stays completely accurate
       await loadSentences();
     } catch (err) {
       console.error("Failed to delete sentence:", err);
       alert("An error occurred while trying to delete the sentence.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // ⚡ Interactive Voting Handler (Performs local atomic updates)
+  const handleVote = async (sentenceId: string, type: "UP" | "DOWN") => {
+    try {
+      setVotingId(`${sentenceId}-${type}`);
+      const response = await SentenceService.vote({ sentenceId, type });
+      
+      // Update local array item immediately to keep counters perfectly synced without page refresh
+      if (response && response.data) {
+        setSentences((prev) =>
+          prev.map((s) => (s.id === sentenceId ? response.data : s))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to register vote:", err);
+    } finally {
+      setVotingId(null);
     }
   };
 
@@ -103,9 +133,9 @@ export default function SentencesPage() {
 
   const toggleSelectAll = () => {
     if (selectedIds.length === sentences.length && sentences.length > 0) {
-      setSelectedIds([]); // Deselect all
+      setSelectedIds([]); 
     } else {
-      setSelectedIds(sentences.map((s) => s.id)); // Select all currently visible
+      setSelectedIds(sentences.map((s) => s.id)); 
     }
   };
 
@@ -114,20 +144,8 @@ export default function SentencesPage() {
 
     try {
       setIsBulkDeleting(true);
-      
-      // 4. Optimized Bulk Delete
-      // Requires: SentenceService.removeBulk(selectedIds) implementation on your backend.
-      // If not available, use chunking instead of Promise.all mapping.
-      if (SentenceService.removeBulk) {
-        await SentenceService.removeBulk(selectedIds);
-      } else {
-        // Fallback if no bulk API exists (not ideal for 100k scale, but prevents total browser lock)
-        for (const id of selectedIds) {
-          await SentenceService.remove(id);
-        }
-      }
-      
-      await loadSentences(); // Re-fetch to keep state perfectly synced
+      await SentenceService.removeBulk(selectedIds);
+      await loadSentences();
       setSelectedIds([]);
     } catch (err) {
       console.error("Failed to execute bulk delete:", err);
@@ -139,6 +157,19 @@ export default function SentencesPage() {
 
   const totalPages = Math.max(1, Math.ceil(meta.total / limit));
   const pageNumbers = getVisiblePages(page, totalPages);
+
+  // Styling helper for Sentiment Tags
+  const getSentimentBadgeStyles = (val: number) => {
+    if (val === 2) return "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40";
+    if (val === 0) return "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/40";
+    return "bg-zinc-100 text-zinc-700 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700";
+  };
+
+  const getSentimentLabel = (val: number) => {
+    if (val === 2) return "😊 Positive";
+    if (val === 0) return "😡 Negative";
+    return "😐 Neutral";
+  };
 
   return (
     <div className="h-[100dvh] flex flex-col bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 transition-colors py-6 px-4 sm:px-6 overflow-hidden">
@@ -175,14 +206,48 @@ export default function SentencesPage() {
           </div>
         </header>
 
-        <div className="relative shrink-0">
+        {/* 🎛️ Search and Semantic Filter Grid Area */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 shrink-0">
           <input
             type="text"
             placeholder="Search in English or Hiligaynon..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 pl-4 pr-4 rounded-lg border border-zinc-200 bg-white text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 transition-all"
+            className="sm:col-span-1 h-10 px-4 rounded-lg border border-zinc-200 bg-white text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 transition-all"
           />
+          
+          <select
+            value={sentimentFilter}
+            onChange={(e) => setSentimentFilter(e.target.value)}
+            className="h-10 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:border-blue-500 outline-none dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <option value="all">All Sentiments</option>
+            <option value="2">😊 Positive (2)</option>
+            <option value="1">😐 Neutral (1)</option>
+            <option value="0">😡 Negative (0)</option>
+          </select>
+
+          <select
+            value={sarcasmFilter}
+            onChange={(e) => setSarcasmFilter(e.target.value)}
+            className="h-10 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:border-blue-500 outline-none dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <option value="all">Literal & Sarcasm</option>
+            <option value="true">😏 Sarcastic Only</option>
+            <option value="false">📝 Literal Only</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-10 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:border-blue-500 outline-none dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <option value="all">All Verification Statuses</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="verified">✅ Verified</option>
+            <option value="approved">⭐ Approved</option>
+            <option value="rejected">❌ Rejected</option>
+          </select>
         </div>
 
         <main className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
@@ -214,7 +279,6 @@ export default function SentencesPage() {
                     </div>
                   )}
 
-                  {/* Removed client-side .filter() -> Map directly over API results */}
                   {sentences.map((sentence) => (
                     <article
                       key={sentence.id}
@@ -242,15 +306,34 @@ export default function SentencesPage() {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0 text-xs">
+                        {/* 🧠 Sentiment Output Tag */}
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getSentimentBadgeStyles(sentence.sentiment)}`}>
+                          {getSentimentLabel(sentence.sentiment)}
+                          {sentence.isSarcastic && <span className="ml-1 text-amber-500">😏</span>}
+                        </span>
+
                         <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider
-                          ${sentence.status === 'verified' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'}`}
+                          ${sentence.status === 'verified' || sentence.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'}`}
                         >
                           {sentence.status}
                         </span>
                         
-                        <div className="flex items-center gap-2 text-zinc-500 font-medium bg-zinc-50 dark:bg-zinc-800 px-2 py-0.5 rounded">
-                          <span className="text-green-600">▲ {sentence.upVotes || 0}</span>
-                          <span className="text-red-500">▼ {sentence.downVotes || 0}</span>
+                        {/* ⚡ ACTIVE ATOMIC VOTING INTERACTION INTERFACE */}
+                        <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800 p-0.5 rounded border border-zinc-200/40 dark:border-zinc-700">
+                          <button
+                            disabled={votingId !== null}
+                            onClick={() => handleVote(sentence.id, "UP")}
+                            className="px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-green-600 font-bold transition-all disabled:opacity-40"
+                          >
+                            ▲ {sentence.upVotes || 0}
+                          </button>
+                          <button
+                            disabled={votingId !== null}
+                            onClick={() => handleVote(sentence.id, "DOWN")}
+                            className="px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-red-500 font-bold transition-all disabled:opacity-40"
+                          >
+                            ▼ {sentence.downVotes || 0}
+                          </button>
                         </div>
 
                         <div className="flex items-center gap-3 border-l border-zinc-200 dark:border-zinc-700 pl-3">
@@ -270,7 +353,7 @@ export default function SentencesPage() {
                   ))}
                   
                   {sentences.length === 0 && (
-                    <p className="text-center text-sm text-zinc-500 py-10">No translations found.</p>
+                    <p className="text-center text-sm text-zinc-500 py-10">No translations found matching your data pipeline selection.</p>
                   )}
                 </div>
               </div>
