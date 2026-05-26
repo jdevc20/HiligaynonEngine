@@ -42,3 +42,22 @@ export const updateSentence = async (id: string, data: Partial<Sentence>) => {
   // Uses PATCH or PUT depending on how your backend API is built
   return api.patch(`/sentences/${id}`, data); 
 };
+
+// lib/sentences.ts (or wherever your raw fetch wrappers live)
+
+export async function deleteSentencesBulk(ids: string[]) {
+  const response = await fetch("/api/sentences/bulk-delete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ids }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Failed to execute bulk deletion.");
+  }
+
+  return await response.json(); // Returns { message, deletedCount }
+}
