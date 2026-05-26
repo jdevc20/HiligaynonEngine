@@ -11,41 +11,73 @@ model Sentence {
   id                   String   @id @default(uuid())
   english              String
   hiligaynon           String
-  
-  // Changed from String? to String to enforce data integrity at scale
   normalizedEnglish    String
   normalizedHiligaynon String
-
   status               String   @default("pending") // pending | verified | rejected
+  
+  // 📈 Cached counters for high-performance reading in your UI feed
   upVotes              Int      @default(0)
   downVotes            Int      @default(0)
   
+  // Relations
   tokens               Token[]
+  votes                Vote[]
+
+  // 🧠 Semantic & Sentiment Analytics Layers
+  sentiment            Int      @default(1)       // 0 = Negative, 1 = Neutral, 2 = Positive
+  intent               String?                    // e.g., "express_financial_luck", "complaint_delay"
+  isSarcastic          Boolean  @default(false)   // Flags heavy contextual irony (e.g., "Nanamian gid ko...")
 
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  // ⚡ CRITICAL INDEXES: Prevents sequential table scans during search queries
+  // ⚡ INDEXES: Optimized for filtering by sentiment and pagination lookups
   @@index([normalizedEnglish])
   @@index([normalizedHiligaynon])
-  @@index([createdAt(sort: Desc)]) // Optimizes the default pagination sort
+  @@index([sentiment])
+  @@index([createdAt(sort: Desc)])
 }
 
 model Token {
   id         String   @id @default(uuid())
   sentenceId String
-  
-  // Added onDelete: Cascade so bulk deletions clear orphaned tokens automatically
   sentence   Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
 
   tokenOrder Int
   text       String
   normalized String?
   root       String?
-  pos        String?  // noun, verb, etc.
+  pos        String?  // noun, verb, particle, etc.
+  
+  // 🏝️ Urban Iloilo Dialect & Context Nuances
+  isSlang     Boolean  @default(false) // Flags localized tokens like "paldo", "chuy", "haw"
+  contextNote String?  // Documents situational semantic shifts (e.g., "Naisahan" meaning "tricked")
 
   createdAt  DateTime @default(now())
 
-  // ⚡ foreign key index optimization
+  @@index([sentenceId])
+}
+
+model Idiom {
+  id        String   @id @default(uuid())
+  phrase    String   @unique // Multi-word expressions like "igo na", "bwas damlag"
+  meaning   String   // The unified semantic translation
+  type      String   @default("colloquial") // colloquial | traditional | metaphor
+  createdAt DateTime @default(now())
+
+  @@index([phrase])
+}
+
+model Vote {
+  id         String   @id @default(uuid())
+  sentenceId String
+  sentence   Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+  userId     String?  // Left optional for future authentication/user profiles
+  ipAddress  String   // Simple footprint tracker to block anonymous vote manipulation
+  type       String   // "UP" | "DOWN"
+  createdAt  DateTime @default(now())
+
+  // ⚡ CONSTRAINT: Enforces that a unique network profile can only vote once per sentence
+  @@unique([sentenceId, ipAddress])
   @@index([sentenceId])
 }
