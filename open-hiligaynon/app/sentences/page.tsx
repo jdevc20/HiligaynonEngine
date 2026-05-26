@@ -11,13 +11,17 @@ export default function SentencesPage() {
   
   // Pagination & API Meta State
   const [page, setPage] = useState(1);
-  const limit = 30; // Changed to 30 items per page
+  const limit = 30;
   const [meta, setMeta] = useState({ total: 0, skip: 0, take: limit });
   
   // UI States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Bulk Selection States
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const loadSentences = async () => {
     try {
@@ -45,9 +49,10 @@ export default function SentencesPage() {
 
     try {
       setDeletingId(id);
-      await SentenceService.remove(id); // Your DELETE endpoint is called here
+      await SentenceService.remove(id); 
       setSentences((prev) => prev.filter((s) => s.id !== id));
       setMeta((prev) => ({ ...prev, total: prev.total - 1 }));
+      setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id)); // Remove from selection if selected
     } catch (err) {
       console.error("Failed to delete sentence:", err);
       alert("An error occurred while trying to delete the sentence.");
@@ -56,12 +61,48 @@ export default function SentencesPage() {
     }
   };
 
+  // Bulk Action Handlers
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((selectedId) => selectedId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredSentences.length && filteredSentences.length > 0) {
+      setSelectedIds([]); // Deselect all
+    } else {
+      setSelectedIds(filteredSentences.map((s) => s.id)); // Select all visible
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} translations?`)) return;
+
+    try {
+      setIsBulkDeleting(true);
+      // Execute multiple delete requests concurrently
+      await Promise.all(selectedIds.map(id => SentenceService.remove(id)));
+      
+      setSentences((prev) => prev.filter((s) => !selectedIds.includes(s.id)));
+      setMeta((prev) => ({ ...prev, total: prev.total - selectedIds.length }));
+      setSelectedIds([]);
+    } catch (err) {
+      console.error("Failed to execute bulk delete:", err);
+      alert("An error occurred while trying to delete the selected sentences.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   useEffect(() => {
     loadSentences();
+    setSelectedIds([]); // Clear selection on page change
   }, [page]);
 
   useEffect(() => {
     if (searchQuery) setPage(1);
+    setSelectedIds([]); // Clear selection on search
   }, [searchQuery]);
 
   const filteredSentences = sentences.filter(
@@ -74,13 +115,10 @@ export default function SentencesPage() {
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
-    // 1. Fixed height to window size (100dvh)
     <div className="h-[100dvh] flex flex-col bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 transition-colors py-6 px-4 sm:px-6 overflow-hidden">
       
-      {/* 2. Inner container flexed to manage remaining space */}
       <div className="max-w-6xl mx-auto w-full flex flex-col flex-1 overflow-hidden space-y-4">
         
-        {/* Header Section (Fixed) */}
         <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 shrink-0">
           <div>
             <Link href="/" className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-2 inline-block">
@@ -92,15 +130,26 @@ export default function SentencesPage() {
             </p>
           </div>
           
-          <Link 
-            href="/sentences/create"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm text-white font-medium hover:bg-blue-700 transition-all shrink-0"
-          >
-            ➕ Add Phrase
-          </Link>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Conditional Bulk Delete Button */}
+            {selectedIds.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-5 text-sm text-white font-medium hover:bg-red-700 transition-all disabled:opacity-50"
+              >
+                {isBulkDeleting ? "Deleting..." : `🗑️ Delete Selected (${selectedIds.length})`}
+              </button>
+            )}
+            <Link 
+              href="/sentences/create"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm text-white font-medium hover:bg-blue-700 transition-all"
+            >
+              ➕ Add Phrase
+            </Link>
+          </div>
         </header>
 
-        {/* Search Bar (Fixed) */}
         <div className="relative shrink-0">
           <input
             type="text"
@@ -111,7 +160,6 @@ export default function SentencesPage() {
           />
         </div>
 
-        {/* Content Area (Scrollable dynamically takes up middle space) */}
         <main className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
@@ -123,25 +171,52 @@ export default function SentencesPage() {
             </div>
           ) : (
             <>
-              {/* 3. The actual scrollable list container */}
               <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 <div className="flex flex-col gap-2">
+                  
+                  {/* Select All Controls */}
+                  {filteredSentences.length > 0 && (
+                    <div className="flex items-center gap-3 px-3 py-2 mb-2 rounded-lg bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+                      <input
+                        type="checkbox"
+                        id="selectAll"
+                        checked={selectedIds.length === filteredSentences.length && filteredSentences.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <label htmlFor="selectAll" className="text-sm font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">
+                        Select All on this page
+                      </label>
+                    </div>
+                  )}
+
                   {filteredSentences.map((sentence) => (
                     <article
                       key={sentence.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border transition-all group ${
+                        selectedIds.includes(sentence.id)
+                          ? "border-blue-400 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
+                          : "border-zinc-100 dark:border-zinc-800 hover:border-blue-300 dark:hover:border-blue-800"
+                      }`}
                     >
-                      {/* Compact Phrases */}
-                      <div className="flex-1 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 overflow-hidden">
-                        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 truncate min-w-[150px]">
-                          {sentence.english}
-                        </h3>
-                        <p className="text-sm text-blue-700 dark:text-blue-400 truncate">
-                          {sentence.hiligaynon}
-                        </p>
+                      <div className="flex-1 flex items-center gap-3 overflow-hidden">
+                        {/* Checkbox for Row */}
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(sentence.id)}
+                          onChange={() => toggleSelection(sentence.id)}
+                          className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
+                        />
+                        <div className="flex-1 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 overflow-hidden">
+                          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 truncate min-w-[150px]">
+                            {sentence.english}
+                          </h3>
+                          <p className="text-sm text-blue-700 dark:text-blue-400 truncate">
+                            {sentence.hiligaynon}
+                          </p>
+                        </div>
                       </div>
 
-                      {/* Compact Meta & Actions */}
                       <div className="flex items-center gap-3 shrink-0 text-xs">
                         <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider
                           ${sentence.status === 'verified' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'}`}
@@ -176,7 +251,6 @@ export default function SentencesPage() {
                 </div>
               </div>
 
-              {/* ALWAYS VISIBLE PAGINATION BAR (Fixed to bottom of main area) */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                 <span className="text-xs text-zinc-500">
                   Showing page {page} of {totalPages}
@@ -224,4 +298,3 @@ export default function SentencesPage() {
     </div>
   );
 }
-
