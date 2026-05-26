@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { Sentence } from "@/app/types/sentence";
+import type { Sentence } from "@/types/sentence";
 
 // Define the shape of your paginated API response
 export interface PaginatedSentences {

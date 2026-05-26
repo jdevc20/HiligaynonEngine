@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { Sentence } from "@/app/types/sentence";
-import { SentenceService } from "@/app/services/sentenceService";
+import type { Sentence } from "@/types/sentence";
+import { SentenceService } from "@/services/sentenceService";
 
 export default function SentencesPage() {
   const [sentences, setSentences] = useState<Sentence[]>([]);

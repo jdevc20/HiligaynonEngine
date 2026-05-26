@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { SentenceService } from "@/app/services/sentenceService";
-import type { Sentence } from "@/app/types/sentence";
+import { SentenceService } from "@/services/sentenceService";
+import type { Sentence } from "@/types/sentence";
 
 export default function EditSentencePage() {
   const params = useParams();

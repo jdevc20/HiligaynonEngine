@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { SentenceService } from "@/app/services/sentenceService";
+import { SentenceService } from "@/services/sentenceService";
 
 export default function CreateSentencePage() {
   const router = useRouter();

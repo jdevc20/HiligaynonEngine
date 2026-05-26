@@ -1,5 +1,5 @@
 import * as sentenceApi from "@/lib/sentences";
-import type { Sentence } from "@/app/types/sentence";
+import type { Sentence } from "@/types/sentence";
 
 export const SentenceService = {
   // 1. Added parameters for pagination and search

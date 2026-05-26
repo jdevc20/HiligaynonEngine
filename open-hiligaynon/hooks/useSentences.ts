@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { SentenceService } from "@/app/services/sentenceService";
-import type { Sentence } from "@/app/types/sentence";
+import { SentenceService } from "@/services/sentenceService";
+import type { Sentence } from "@/types/sentence";
 
 // We define the parameters the hook will accept
 interface UseSentencesProps {
