@@ -1,272 +1,178 @@
-# HiligaynonEngine
-A community-driven machine learning and NLP platform for Hiligaynon language processing and translation.
----
+# Open Hiligaynon
 
-# 📘 HiligaynonNLP
-
-> Open-source NLP and machine learning platform for the Hiligaynon language, featuring translation, tokenization, morphology analysis, and community-driven datasets.
+A crowdsourced, open-source platform for translating, preserving, and sharing the Hiligaynon language. Built by the community, for everyone.
 
 ---
 
-# 🚀 Overview
+## 🚀 Overview
 
-**HiligaynonNLP** is a modular natural language processing system designed to support the development of:
+**Open Hiligaynon** is a full-stack web platform that lets anyone contribute and browse English ↔ Hiligaynon sentence pairs. Each sentence is enriched with semantic annotations — sentiment, sarcasm detection, and intent tagging — to build a high-quality, NLP-ready parallel corpus for this low-resource language.
 
-* 🌍 English ↔ Hiligaynon translation
-* 🔤 Tokenization & text normalization
-* 🧠 Morphological analysis (affixes, roots, grammar)
-* 📚 Crowdsourced parallel corpus dataset
-* 🤖 Machine learning translation models
+**Key features:**
 
-This project aims to support both **language preservation** and **AI-driven translation systems** for low-resource languages.
-
----
-
-# 🎯 Vision
-
-To build a complete open-source ecosystem that enables:
-
-* High-quality translation systems
-* Linguistic research tools
-* Community-driven dataset growth
-* Machine learning models for underrepresented languages
+- ✍️ **Contribute translations** — Submit English ↔ Hiligaynon sentence pairs
+- 🔍 **Browse the database** — Search, filter, and paginate the full corpus
+- ⚡ **Community voting** — Upvote/downvote translations to surface the best ones
+- 🧠 **Semantic annotations** — Sentiment (positive/neutral/negative), sarcasm flag, and intent label per sentence
+- 🔌 **Open REST API** — Developers can query and integrate the dataset into their own apps
 
 ---
 
-# 🧭 Project Roadmap
-
-## 🟢 Phase 1 — Dataset Foundation
-
-**Goal:** Build structured language data
-
-* Sentence contribution system
-* Parallel sentence storage (English ↔ Hiligaynon)
-* Voting and validation system
-* Initial dataset (1k–5k sentences)
-
-✔ Output: Clean, structured corpus
-
----
-
-## 🟡 Phase 2 — Tokenization & NLP Layer
-
-**Goal:** Build linguistic preprocessing tools
-
-* Word tokenizer
-* Sentence splitter
-* Text normalization (e.g., selpon → cellphone)
-* Basic POS tagging
-* Morphological tagging (naga-, gin-, mag-)
-
-✔ Output: NLP-ready dataset
-
----
-
-## 🟠 Phase 3 — Rule-Based Translator (MVP)
-
-**Goal:** Functional translation engine without ML
-
-* Dictionary-based translation
-* Grammar reordering system
-* Affix handling rules
-* Simple API endpoint for translation
-
-✔ Output: Working baseline translator
-
----
-
-## 🔵 Phase 4 — Machine Learning Integration
-
-**Goal:** Neural translation model
-
-* Train on parallel corpus
-* Fine-tune pretrained models (NLLB / mT5 / MarianMT)
-* Sentence alignment system
-* Evaluation metrics (BLEU score)
-
-✔ Output: Neural translation engine
-
----
-
-## 🟣 Phase 5 — Hybrid AI System
-
-**Goal:** Improve accuracy & fluency
-
-* Combine ML + rule-based corrections
-* Confidence scoring system
-* Post-processing grammar fixes
-* Fallback translation strategies
-
-✔ Output: Production-grade translator
-
----
-
-## 🔴 Phase 6 — Community Ecosystem
-
-**Goal:** Scale the platform
-
-* Public API
-* Contributor system
-* Dataset versioning
-* Audio pronunciation support
-* Web + mobile applications
-
-✔ Output: Full open language platform
-
----
-
-# 🏗️ System Architecture
+## 📦 Repository Structure
 
 ```text
-Input Text
-   ↓
-Tokenizer
-   ↓
-Normalizer
-   ↓
-Morphology Analyzer
-   ↓
-Translation Engine (Rule-based or ML)
-   ↓
-Post-Processor
-   ↓
-Output Translation
+HiligaynonEngine/
+├── open-hiligaynon/          # Next.js 16 frontend (React 19, TypeScript, Tailwind CSS)
+│   ├── app/                  # App Router pages
+│   │   ├── page.tsx          # Home / landing page
+│   │   └── sentences/        # Browse, create, and view sentence pages
+│   ├── hooks/                # Custom React hooks (e.g., useSentences)
+│   ├── lib/                  # Shared utilities (Axios client, sentence helpers)
+│   ├── services/             # Frontend API service layer (SentenceService)
+│   └── types/                # TypeScript type definitions
+│
+├── open-hiligaynon-api/      # Express 5 REST API backend (Node.js, TypeScript, Prisma)
+│   ├── src/
+│   │   ├── app.ts            # Express app setup (CORS, middleware, routes)
+│   │   ├── index.ts          # Server entry point
+│   │   ├── controllers/      # Request/response handlers
+│   │   ├── routes/           # Route definitions
+│   │   ├── services/         # Business logic (normalization, voting, CRUD)
+│   │   ├── lib/              # Prisma client singleton
+│   │   └── utils/            # Shared utilities
+│   └── prisma/
+│       ├── schema.prisma     # Database schema (Sentence, Token, Idiom, Vote)
+│       └── migrations/       # Prisma migration history
+│
+└── Postman/                  # Postman collection for API testing
 ```
 
 ---
 
-# 📦 Repository Structure
+## ⚙️ Tech Stack
 
-```text
-HiligaynonNLP/
-├── api/                  # Backend services (C#, Node.js, etc.)
-├── web/                 # Contributor + dashboard UI
-├── tokenizer/          # Tokenization logic
-├── morphology/         # Affix + root analysis
-├── translation-engine/ # Rule-based translator
-├── ml-model/           # Training scripts & models
-├── datasets/           # Parallel corpus storage
-├── scripts/            # Utilities (cleanup, export)
-└── docs/               # Documentation
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| Backend | Express 5, Node.js, TypeScript |
+| Database | PostgreSQL (via Prisma ORM) |
+| HTTP Client | Axios |
+| Dev Tools | tsx (hot-reload), ESLint, Prisma Studio |
+
+---
+
+## 🗄️ Database Schema
+
+The core data model is built around four Prisma models:
+
+- **`Sentence`** — A parallel sentence pair (`english` + `hiligaynon`) with normalized text for search, cached vote counters, verification status (`pending` / `verified` / `rejected`), and semantic fields (`sentiment`, `intent`, `isSarcastic`).
+- **`Token`** — Individual word tokens linked to a sentence, storing text, normalized form, root word, POS tag, and dialect/slang flags.
+- **`Idiom`** — Multi-word expressions (e.g., "igo na", "bwas damlag") with their unified meaning and type (colloquial, traditional, metaphor).
+- **`Vote`** — Per-IP vote records for each sentence, enforcing one vote per network identity to prevent manipulation.
+
+---
+
+## 🔌 API Endpoints
+
+Base path: `/api/sentences`
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/sentences` | List sentences (supports `page`, `limit`, `search`, `sentiment`, `isSarcastic`, `status`) |
+| `POST` | `/api/sentences` | Create a new sentence pair |
+| `GET` | `/api/sentences/:id` | Get a single sentence with its tokens |
+| `DELETE` | `/api/sentences/:id` | Delete a sentence |
+| `POST` | `/api/sentences/bulk-delete` | Delete multiple sentences by ID array |
+| `POST` | `/api/sentences/migrate` | Run pending Prisma migrations |
+| `GET` | `/health` | Health check |
+
+> Voting is handled via the sentence service using a thread-safe atomic transaction. A `POST` to cast a vote accepts `sentenceId`, `type` (`UP` or `DOWN`), and an optional `userId`. Duplicate votes from the same IP toggle off; switching vote direction is handled atomically.
+
+---
+
+## 🏃 Getting Started
+
+### Prerequisites
+
+- Node.js 22.x
+- PostgreSQL database
+- A `.env` file in `open-hiligaynon-api/` with `DATABASE_URL`
+
+### Run the API
+
+```bash
+cd open-hiligaynon-api
+npm install
+npm run db:migrate     # Run database migrations
+npm run dev            # Start API with hot-reload (tsx watch)
+```
+
+### Run the Frontend
+
+```bash
+cd open-hiligaynon
+npm install
+npm run dev            # Start Next.js dev server
 ```
 
 ---
 
-# 🧠 Core NLP Concepts
+## 📊 Sentence Dataset Format
 
-## Tokenization
-
-Breaking sentences into meaningful units:
-
-```text
-Nagakaon ako sang kan-on
-→ [Nagakaon, ako, sang, kan-on]
-```
-
----
-
-## Morphology
-
-Analyzing word structure:
-
-```text
-ginluto
-→ prefix: gin-
-→ root: luto
-→ meaning: cooked (completed action)
-```
-
----
-
-## Translation Alignment
-
-Mapping meaning between languages:
-
-```text
-I → ako  
-eat → kaon  
-rice → kan-on
-```
-
----
-
-# 🤝 Contribution Guide
-
-We welcome contributions!
-
-### You can help by:
-
-* Adding sentence pairs
-* Improving translations
-* Fixing grammar rules
-* Building tokenizer logic
-* Training ML models
-
----
-
-## Contribution Workflow
-
-1. Fork repository
-2. Create branch
-3. Add data or feature
-4. Submit pull request
-5. Review & merge
-
----
-
-# 📊 Dataset Format
-
-### Sentence Pair
+### Sentence Pair (API request body)
 
 ```json
 {
   "english": "I am hungry",
-  "hiligaynon": "Gutom ako"
+  "hiligaynon": "Gutom ako",
+  "sentiment": 0,
+  "intent": "express_hunger",
+  "isSarcastic": false
 }
 ```
 
----
-
-### Dictionary Entry
+### Sentence Pair (API response)
 
 ```json
 {
-  "word": "eat",
-  "translation": "kaon",
-  "type": "verb"
+  "id": "uuid",
+  "english": "I am hungry",
+  "hiligaynon": "Gutom ako",
+  "normalizedEnglish": "i am hungry",
+  "normalizedHiligaynon": "gutom ako",
+  "status": "pending",
+  "upVotes": 3,
+  "downVotes": 0,
+  "sentiment": 0,
+  "intent": "express_hunger",
+  "isSarcastic": false,
+  "createdAt": "2025-01-01T00:00:00.000Z",
+  "updatedAt": "2025-01-01T00:00:00.000Z"
 }
 ```
 
 ---
 
-# ⚙️ Tech Stack
+## 🤝 Contributing
 
-* Backend: ASP.NET Core / Node.js
-* Frontend: React / Next.js
-* Database: PostgreSQL
-* ML: Python (PyTorch / Hugging Face)
-* NLP Tools: Custom tokenizer + transformers
+We welcome contributions from everyone — whether you're a native Hiligaynon speaker, a developer, or a language enthusiast.
 
----
+**Ways to contribute:**
 
-# 📈 Future Enhancements
+- Add sentence pairs via the web app or API
+- Improve translation quality through community voting
+- Report issues or suggest features on GitHub
+- Submit books, PDFs, and references to improve the dataset
 
-* Speech-to-text in Hiligaynon
-* Text-to-speech system
-* Grammar correction AI
-* Multilingual expansion (Cebuano, Tagalog)
-* Mobile translation app
+**Development workflow:**
 
----
-
-# 📜 License
-
-This project is intended to be open-source and community-driven. License will be defined as the project matures (recommended: MIT or Apache 2.0).
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request for review
 
 ---
 
-# 🌍 Goal
+## 📜 License
 
-To create a scalable NLP and AI system that preserves and modernizes the use of the Hiligaynon language while enabling world-class machine translation capabilities.
-
----
+Licensed under the [MIT License](LICENSE).
