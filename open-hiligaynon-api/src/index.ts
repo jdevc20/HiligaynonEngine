@@ -1,5 +1,6 @@
 import "dotenv/config";
 import app from "./app.js";
+import { ensureDatabaseSchema } from "./lib/prisma.js";
 
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = "0.0.0.0";
@@ -15,6 +16,9 @@ let server: any;
 async function startServer() {
   try {
     console.log("🚀 Starting server...");
+    console.log("🗄️ Ensuring database schema...");
+    await ensureDatabaseSchema();
+    console.log("✅ Database schema ready.");
 
     server = app.listen(PORT, HOST, () => {
       console.log(`✅ Server running at http://${HOST}:${PORT}`);
