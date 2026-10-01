@@ -299,6 +299,17 @@ export const createSentence = async (data: CreateSentenceInput) => {
 
     await upsertTargetAnnotation(tx, targetText.id, data);
 
+    const existingPair = await tx.translation.findFirst({
+      where: {
+        sourceTextId: sourceText.id,
+        targetTextId: targetText.id,
+      },
+    });
+
+    if (existingPair) {
+      return existingPair.id;
+    }
+
     const translation = await tx.translation.create({
       data: {
         sourceTextId: sourceText.id,
