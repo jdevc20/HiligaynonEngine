@@ -1,16 +1,26 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
+import { useAuth } from "@/contexts/AuthContext";
+import { isHilitechAdmin } from "@/lib/auth";
 import { EngineService } from "@/services/engineService";
 import type { DatasetExportResponse } from "@/types/engine";
 
 export default function DatasetsPage() {
+  const { session } = useAuth();
+  const isAdmin = isHilitechAdmin(session?.user.role);
   const [datasetId, setDatasetId] = useState("");
   const [split, setSplit] = useState("");
   const [result, setResult] = useState<DatasetExportResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("datasetId");
+    if (id) setDatasetId(id);
+  }, []);
 
   const loadDataset = async (event: FormEvent) => {
     event.preventDefault();
@@ -55,6 +65,26 @@ export default function DatasetsPage() {
             membership used by the training-data export API.
           </p>
         </div>
+
+        {isAdmin && (
+          <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-bold text-blue-900 dark:text-blue-100">
+                Dataset generation
+              </p>
+              <p className="mt-1 text-sm text-blue-800/80 dark:text-blue-200/80">
+                Your Hilitech admin role can create a new immutable dataset
+                version from verified corpus records.
+              </p>
+            </div>
+            <Link
+              href="/datasets/generate"
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Generate dataset
+            </Link>
+          </div>
+        )}
 
         <form
           onSubmit={loadDataset}
