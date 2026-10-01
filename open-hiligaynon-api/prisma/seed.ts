@@ -83,6 +83,44 @@ const samples = [
   },
 ] as const;
 
+const grammarBySentence: Record<
+  string,
+  Array<{ category: string; label: string; value?: string; notes?: string }>
+> = {
+  "Diin ka makadto?": [
+    {
+      category: "sentence_type",
+      label: "interrogative",
+      value: "location_question",
+      notes: "Uses the interrogative diin ('where').",
+    },
+  ],
+  "Makadto ako sa balay.": [
+    {
+      category: "predicate",
+      label: "verbal_clause",
+      value: "movement",
+      notes: "The verbal predicate makadto is followed by the actor pronoun ako.",
+    },
+  ],
+  "Kaon kita anay.": [
+    {
+      category: "speech_act",
+      label: "inclusive_invitation",
+      value: "hortative",
+      notes: "Kita is inclusive first-person plural; anay softens/sequences the invitation.",
+    },
+  ],
+  "Indi ko gusto sini.": [
+    {
+      category: "negation",
+      label: "negative_clause",
+      value: "indi",
+      notes: "Indi marks clause-level negation.",
+    },
+  ],
+};
+
 const dictionary = [
   { lemma: "aga", pos: "noun", definition: "The morning or early part of the day.", gloss: "morning" },
   { lemma: "anay", pos: "particle", definition: "Marks doing something first or for the moment.", gloss: "first / for a while" },
@@ -279,6 +317,32 @@ async function main() {
         split,
       },
     });
+
+    for (const grammar of grammarBySentence[sample.hiligaynon] ?? []) {
+      const grammarId =
+        "grammar-" +
+        targetText.id +
+        "-" +
+        normalizeText(grammar.category + "-" + grammar.label).replace(/\s+/g, "-");
+
+      await prisma.grammarAnnotation.upsert({
+        where: { id: grammarId },
+        update: {
+          category: grammar.category,
+          label: grammar.label,
+          value: grammar.value,
+          notes: grammar.notes,
+        },
+        create: {
+          id: grammarId,
+          textUnitId: targetText.id,
+          category: grammar.category,
+          label: grammar.label,
+          value: grammar.value,
+          notes: grammar.notes,
+        },
+      });
+    }
 
     const rawTokens = sample.hiligaynon.split(/\s+/);
 
