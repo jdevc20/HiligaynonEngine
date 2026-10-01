@@ -221,16 +221,34 @@ ON CONFLICT ("code") DO NOTHING;
 
 -- Backfill the existing English/Hiligaynon sentence corpus.
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
-SELECT DISTINCT ON ("normalizedEnglish")
-  'tu-en-' || md5("normalizedEnglish"), 'lang-en', "english", "normalizedEnglish", 'sentence', "createdAt", "updatedAt"
-FROM "Sentence"
+SELECT DISTINCT ON (s."normalizedEnglish")
+  'tu-en-' || md5(s."normalizedEnglish"),
+  en."id",
+  s."english",
+  s."normalizedEnglish",
+  'sentence',
+  s."createdAt",
+  s."updatedAt"
+FROM "Sentence" s
+CROSS JOIN LATERAL (
+  SELECT "id" FROM "Language" WHERE "code" = 'en' LIMIT 1
+) en
 ORDER BY "normalizedEnglish", "createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
-SELECT DISTINCT ON ("normalizedHiligaynon")
-  'tu-hil-' || md5("normalizedHiligaynon"), 'lang-hil', "hiligaynon", "normalizedHiligaynon", 'sentence', "createdAt", "updatedAt"
-FROM "Sentence"
+SELECT DISTINCT ON (s."normalizedHiligaynon")
+  'tu-hil-' || md5(s."normalizedHiligaynon"),
+  hil."id",
+  s."hiligaynon",
+  s."normalizedHiligaynon",
+  'sentence',
+  s."createdAt",
+  s."updatedAt"
+FROM "Sentence" s
+CROSS JOIN LATERAL (
+  SELECT "id" FROM "Language" WHERE "code" = 'hil' LIMIT 1
+) hil
 ORDER BY "normalizedHiligaynon", "createdAt"
 ON CONFLICT DO NOTHING;
 
@@ -239,11 +257,26 @@ INSERT INTO "Translation" (
   "upVotes", "downVotes", "createdAt", "updatedAt"
 )
 SELECT
-  "id",
-  'tu-en-' || md5("normalizedEnglish"),
-  'tu-hil-' || md5("normalizedHiligaynon"),
-  "status", 'natural', "upVotes", "downVotes", "createdAt", "updatedAt"
-FROM "Sentence"
+  s."id",
+  src."id",
+  tgt."id",
+  s."status",
+  'natural',
+  s."upVotes",
+  s."downVotes",
+  s."createdAt",
+  s."updatedAt"
+FROM "Sentence" s
+JOIN "Language" en ON en."code" = 'en'
+JOIN "Language" hil ON hil."code" = 'hil'
+JOIN "TextUnit" src
+  ON src."languageId" = en."id"
+ AND src."normalizedText" = s."normalizedEnglish"
+ AND src."unitType" = 'sentence'
+JOIN "TextUnit" tgt
+  ON tgt."languageId" = hil."id"
+ AND tgt."normalizedText" = s."normalizedHiligaynon"
+ AND tgt."unitType" = 'sentence'
 ON CONFLICT DO NOTHING;
 
 -- Preserve legacy idioms as phrase-level English -> Hiligaynon translations.
@@ -293,25 +326,37 @@ INSERT INTO "LinguisticAnnotation" (
   "id", "textUnitId", "sentiment", "intent", "isSarcastic", "createdAt", "updatedAt"
 )
 SELECT
-  'annotation-' || md5("normalizedHiligaynon"),
-  'tu-hil-' || md5("normalizedHiligaynon"),
-  "sentiment", "intent", "isSarcastic", "createdAt", "updatedAt"
-FROM "Sentence"
+  'annotation-' || md5(s."normalizedHiligaynon"),
+  tgt."id",
+  s."sentiment",
+  s."intent",
+  s."isSarcastic",
+  s."createdAt",
+  s."updatedAt"
+FROM "Sentence" s
+JOIN "Language" hil ON hil."code" = 'hil'
+JOIN "TextUnit" tgt
+  ON tgt."languageId" = hil."id"
+ AND tgt."normalizedText" = s."normalizedHiligaynon"
+ AND tgt."unitType" = 'sentence'
 ON CONFLICT ("textUnitId") DO NOTHING;
 
 -- Promote legacy token roots into reusable Hiligaynon dictionary lexemes.
 INSERT INTO "Lexeme" (
   "id", "languageId", "lemma", "normalizedLemma", "partOfSpeech", "createdAt", "updatedAt"
 )
-SELECT DISTINCT ON (lower(trim("root")))
-  'lexeme-hil-' || md5(lower(trim("root"))),
-  'lang-hil',
-  trim("root"),
-  lower(trim("root")),
-  "pos",
-  "createdAt",
-  "createdAt"
-FROM "Token"
+SELECT DISTINCT ON (lower(trim(t."root")))
+  'lexeme-hil-' || md5(lower(trim(t."root"))),
+  hil."id",
+  trim(t."root"),
+  lower(trim(t."root")),
+  t."pos",
+  t."createdAt",
+  t."createdAt"
+FROM "Token" t
+CROSS JOIN LATERAL (
+  SELECT "id" FROM "Language" WHERE "code" = 'hil' LIMIT 1
+) hil
 WHERE "root" IS NOT NULL AND trim("root") <> ''
 ORDER BY lower(trim("root")), "createdAt"
 ON CONFLICT DO NOTHING;
@@ -322,7 +367,7 @@ INSERT INTO "TokenAnnotation" (
 )
 SELECT
   t."id",
-  'tu-hil-' || md5(s."normalizedHiligaynon"),
+  tgt."id",
   t."tokenOrder",
   t."text",
   COALESCE(t."normalized", lower(t."text")),
@@ -337,6 +382,11 @@ SELECT
   t."createdAt"
 FROM "Token" t
 JOIN "Sentence" s ON s."id" = t."sentenceId"
+JOIN "Language" hil ON hil."code" = 'hil'
+JOIN "TextUnit" tgt
+  ON tgt."languageId" = hil."id"
+ AND tgt."normalizedText" = s."normalizedHiligaynon"
+ AND tgt."unitType" = 'sentence'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TranslationVote" ("id", "translationId", "userId", "ipAddress", "type", "createdAt")
@@ -345,33 +395,95 @@ FROM "Vote"
 ON CONFLICT DO NOTHING;
 
 -- Foreign keys are added after backfill so existing data is copied first.
-ALTER TABLE "TextUnit"
-  ADD CONSTRAINT "TextUnit_languageId_fkey" FOREIGN KEY ("languageId") REFERENCES "Language"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Translation"
-  ADD CONSTRAINT "Translation_sourceTextId_fkey" FOREIGN KEY ("sourceTextId") REFERENCES "TextUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  ADD CONSTRAINT "Translation_targetTextId_fkey" FOREIGN KEY ("targetTextId") REFERENCES "TextUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "LinguisticAnnotation"
-  ADD CONSTRAINT "LinguisticAnnotation_textUnitId_fkey" FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "Lexeme"
-  ADD CONSTRAINT "Lexeme_languageId_fkey" FOREIGN KEY ("languageId") REFERENCES "Language"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "LexemeSense"
-  ADD CONSTRAINT "LexemeSense_lexemeId_fkey" FOREIGN KEY ("lexemeId") REFERENCES "Lexeme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "LexemeTranslation"
-  ADD CONSTRAINT "LexemeTranslation_sourceLexemeId_fkey" FOREIGN KEY ("sourceLexemeId") REFERENCES "Lexeme"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT "LexemeTranslation_targetLexemeId_fkey" FOREIGN KEY ("targetLexemeId") REFERENCES "Lexeme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "TokenAnnotation"
-  ADD CONSTRAINT "TokenAnnotation_textUnitId_fkey" FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT "TokenAnnotation_lexemeId_fkey" FOREIGN KEY ("lexemeId") REFERENCES "Lexeme"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "GrammarAnnotation"
-  ADD CONSTRAINT "GrammarAnnotation_textUnitId_fkey" FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "TextSource"
-  ADD CONSTRAINT "TextSource_textUnitId_fkey" FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT "TextSource_sourceId_fkey" FOREIGN KEY ("sourceId") REFERENCES "SourceRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "TranslationSource"
-  ADD CONSTRAINT "TranslationSource_translationId_fkey" FOREIGN KEY ("translationId") REFERENCES "Translation"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT "TranslationSource_sourceId_fkey" FOREIGN KEY ("sourceId") REFERENCES "SourceRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "DatasetItem"
-  ADD CONSTRAINT "DatasetItem_datasetId_fkey" FOREIGN KEY ("datasetId") REFERENCES "Dataset"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT "DatasetItem_translationId_fkey" FOREIGN KEY ("translationId") REFERENCES "Translation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "TranslationVote"
-  ADD CONSTRAINT "TranslationVote_translationId_fkey" FOREIGN KEY ("translationId") REFERENCES "Translation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TextUnit_languageId_fkey') THEN
+    ALTER TABLE "TextUnit" ADD CONSTRAINT "TextUnit_languageId_fkey"
+      FOREIGN KEY ("languageId") REFERENCES "Language"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Translation_sourceTextId_fkey') THEN
+    ALTER TABLE "Translation" ADD CONSTRAINT "Translation_sourceTextId_fkey"
+      FOREIGN KEY ("sourceTextId") REFERENCES "TextUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Translation_targetTextId_fkey') THEN
+    ALTER TABLE "Translation" ADD CONSTRAINT "Translation_targetTextId_fkey"
+      FOREIGN KEY ("targetTextId") REFERENCES "TextUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LinguisticAnnotation_textUnitId_fkey') THEN
+    ALTER TABLE "LinguisticAnnotation" ADD CONSTRAINT "LinguisticAnnotation_textUnitId_fkey"
+      FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Lexeme_languageId_fkey') THEN
+    ALTER TABLE "Lexeme" ADD CONSTRAINT "Lexeme_languageId_fkey"
+      FOREIGN KEY ("languageId") REFERENCES "Language"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LexemeSense_lexemeId_fkey') THEN
+    ALTER TABLE "LexemeSense" ADD CONSTRAINT "LexemeSense_lexemeId_fkey"
+      FOREIGN KEY ("lexemeId") REFERENCES "Lexeme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LexemeTranslation_sourceLexemeId_fkey') THEN
+    ALTER TABLE "LexemeTranslation" ADD CONSTRAINT "LexemeTranslation_sourceLexemeId_fkey"
+      FOREIGN KEY ("sourceLexemeId") REFERENCES "Lexeme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LexemeTranslation_targetLexemeId_fkey') THEN
+    ALTER TABLE "LexemeTranslation" ADD CONSTRAINT "LexemeTranslation_targetLexemeId_fkey"
+      FOREIGN KEY ("targetLexemeId") REFERENCES "Lexeme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TokenAnnotation_textUnitId_fkey') THEN
+    ALTER TABLE "TokenAnnotation" ADD CONSTRAINT "TokenAnnotation_textUnitId_fkey"
+      FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TokenAnnotation_lexemeId_fkey') THEN
+    ALTER TABLE "TokenAnnotation" ADD CONSTRAINT "TokenAnnotation_lexemeId_fkey"
+      FOREIGN KEY ("lexemeId") REFERENCES "Lexeme"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'GrammarAnnotation_textUnitId_fkey') THEN
+    ALTER TABLE "GrammarAnnotation" ADD CONSTRAINT "GrammarAnnotation_textUnitId_fkey"
+      FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TextSource_textUnitId_fkey') THEN
+    ALTER TABLE "TextSource" ADD CONSTRAINT "TextSource_textUnitId_fkey"
+      FOREIGN KEY ("textUnitId") REFERENCES "TextUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TextSource_sourceId_fkey') THEN
+    ALTER TABLE "TextSource" ADD CONSTRAINT "TextSource_sourceId_fkey"
+      FOREIGN KEY ("sourceId") REFERENCES "SourceRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TranslationSource_translationId_fkey') THEN
+    ALTER TABLE "TranslationSource" ADD CONSTRAINT "TranslationSource_translationId_fkey"
+      FOREIGN KEY ("translationId") REFERENCES "Translation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TranslationSource_sourceId_fkey') THEN
+    ALTER TABLE "TranslationSource" ADD CONSTRAINT "TranslationSource_sourceId_fkey"
+      FOREIGN KEY ("sourceId") REFERENCES "SourceRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DatasetItem_datasetId_fkey') THEN
+    ALTER TABLE "DatasetItem" ADD CONSTRAINT "DatasetItem_datasetId_fkey"
+      FOREIGN KEY ("datasetId") REFERENCES "Dataset"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DatasetItem_translationId_fkey') THEN
+    ALTER TABLE "DatasetItem" ADD CONSTRAINT "DatasetItem_translationId_fkey"
+      FOREIGN KEY ("translationId") REFERENCES "Translation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TranslationVote_translationId_fkey') THEN
+    ALTER TABLE "TranslationVote" ADD CONSTRAINT "TranslationVote_translationId_fkey"
+      FOREIGN KEY ("translationId") REFERENCES "Translation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
