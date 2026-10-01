@@ -221,13 +221,17 @@ ON CONFLICT ("code") DO NOTHING;
 
 -- Backfill the existing English/Hiligaynon sentence corpus.
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
-SELECT 'en-' || "id", 'lang-en', "english", "normalizedEnglish", 'sentence', "createdAt", "updatedAt"
+SELECT DISTINCT ON ("normalizedEnglish")
+  'tu-en-' || md5("normalizedEnglish"), 'lang-en', "english", "normalizedEnglish", 'sentence', "createdAt", "updatedAt"
 FROM "Sentence"
+ORDER BY "normalizedEnglish", "createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
-SELECT 'hil-' || "id", 'lang-hil', "hiligaynon", "normalizedHiligaynon", 'sentence', "createdAt", "updatedAt"
+SELECT DISTINCT ON ("normalizedHiligaynon")
+  'tu-hil-' || md5("normalizedHiligaynon"), 'lang-hil', "hiligaynon", "normalizedHiligaynon", 'sentence', "createdAt", "updatedAt"
 FROM "Sentence"
+ORDER BY "normalizedHiligaynon", "createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "Translation" (
@@ -235,8 +239,10 @@ INSERT INTO "Translation" (
   "upVotes", "downVotes", "createdAt", "updatedAt"
 )
 SELECT
-  "id", 'en-' || "id", 'hil-' || "id", "status", 'natural',
-  "upVotes", "downVotes", "createdAt", "updatedAt"
+  "id",
+  'tu-en-' || md5("normalizedEnglish"),
+  'tu-hil-' || md5("normalizedHiligaynon"),
+  "status", 'natural', "upVotes", "downVotes", "createdAt", "updatedAt"
 FROM "Sentence"
 ON CONFLICT DO NOTHING;
 
@@ -244,7 +250,9 @@ INSERT INTO "LinguisticAnnotation" (
   "id", "textUnitId", "sentiment", "intent", "isSarcastic", "createdAt", "updatedAt"
 )
 SELECT
-  'annotation-' || "id", 'hil-' || "id", "sentiment", "intent", "isSarcastic", "createdAt", "updatedAt"
+  'annotation-' || md5("normalizedHiligaynon"),
+  'tu-hil-' || md5("normalizedHiligaynon"),
+  "sentiment", "intent", "isSarcastic", "createdAt", "updatedAt"
 FROM "Sentence"
 ON CONFLICT ("textUnitId") DO NOTHING;
 
@@ -253,9 +261,12 @@ INSERT INTO "TokenAnnotation" (
   "partOfSpeech", "isSlang", "contextNote", "createdAt"
 )
 SELECT
-  "id", 'hil-' || "sentenceId", "tokenOrder", "text",
-  COALESCE("normalized", lower("text")), "pos", "isSlang", "contextNote", "createdAt"
-FROM "Token"
+  t."id",
+  'tu-hil-' || md5(s."normalizedHiligaynon"),
+  t."tokenOrder", t."text", COALESCE(t."normalized", lower(t."text")),
+  t."pos", t."isSlang", t."contextNote", t."createdAt"
+FROM "Token" t
+JOIN "Sentence" s ON s."id" = t."sentenceId"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TranslationVote" ("id", "translationId", "userId", "ipAddress", "type", "createdAt")
