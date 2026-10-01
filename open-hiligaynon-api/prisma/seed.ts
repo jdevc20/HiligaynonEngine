@@ -223,24 +223,31 @@ async function main() {
       },
     });
 
-    const translation = await prisma.translation.upsert({
+    let translation = await prisma.translation.findFirst({
       where: {
-        sourceTextId_targetTextId: {
-          sourceTextId: sourceText.id,
-          targetTextId: targetText.id,
-        },
-      },
-      update: {
-        status: "verified",
-        translationType: "natural",
-      },
-      create: {
         sourceTextId: sourceText.id,
         targetTextId: targetText.id,
-        status: "verified",
-        translationType: "natural",
       },
     });
+
+    if (translation) {
+      translation = await prisma.translation.update({
+        where: { id: translation.id },
+        data: {
+          status: "verified",
+          translationType: "natural",
+        },
+      });
+    } else {
+      translation = await prisma.translation.create({
+        data: {
+          sourceTextId: sourceText.id,
+          targetTextId: targetText.id,
+          status: "verified",
+          translationType: "natural",
+        },
+      });
+    }
 
     await prisma.translationSource.upsert({
       where: {
