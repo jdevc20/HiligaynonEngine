@@ -1,5 +1,10 @@
 import { api } from "./api";
-import type { DatasetExportResponse, DictionarySearchResponse } from "@/types/engine";
+import type {
+  DatasetExportResponse,
+  DictionarySearchResponse,
+  GeneratedDatasetResult,
+  GenerateDatasetInput,
+} from "@/types/engine";
 
 export const searchDictionary = async (
   query: string,
@@ -23,4 +28,12 @@ export const exportDataset = async (
   });
 
   return res.data;
+};
+
+
+export const generateDataset = async (
+  input: GenerateDatasetInput
+): Promise<GeneratedDatasetResult> => {
+  const res = await api.post("/engine/datasets/generate", input);
+  return res.data.data;
 };
