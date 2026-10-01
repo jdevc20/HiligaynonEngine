@@ -5,7 +5,7 @@
 export const normalizeText = (text: string): string => {
   return text
     .normalize("NFC")
-    .toLocaleLowerCase()
+    .toLowerCase()
     .trim()
     .replace(/[.,/#!$%^&*;:{}=_`~()\[\]?"“”]/g, "")
     .replace(/\s+/g, " ");
