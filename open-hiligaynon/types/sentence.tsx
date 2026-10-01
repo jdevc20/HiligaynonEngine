@@ -1,24 +1,88 @@
+export type TranslationStatus =
+  | "pending"
+  | "verified"
+  | "approved"
+  | "rejected";
+
+export interface LexemeSense {
+  id: string;
+  definition: string;
+  gloss: string | null;
+  register: string | null;
+  usageNote: string | null;
+}
+
+export interface SentenceToken {
+  id: string;
+  tokenOrder: number;
+  text: string;
+  normalized: string;
+  lemma: string | null;
+  lexemeId: string | null;
+  pos: string | null;
+  morphologicalFeatures: Record<string, unknown> | null;
+  dependencyRelation: string | null;
+  headTokenOrder: number | null;
+  isSlang: boolean;
+  contextNote: string | null;
+  senses: LexemeSense[];
+}
+
+export interface GrammarAnnotation {
+  id: string;
+  category: string;
+  label: string;
+  value: string | null;
+  startTokenOrder: number | null;
+  endTokenOrder: number | null;
+  features: Record<string, unknown> | null;
+  notes: string | null;
+  createdAt: string;
+}
+
 export interface Sentence {
   id: string;
   english: string;
   hiligaynon: string;
-  
-  // These are returned by your API for search indexing
   normalizedEnglish: string;
   normalizedHiligaynon: string;
-  
-  // Expanded to include 'approved' which is commonly used in crowdsourced apps
-  status: "pending" | "verified" | "approved" | "rejected"; 
-  
+  status: TranslationStatus;
+
   upVotes: number;
   downVotes: number;
 
-  // 🧠 Semantic & Sentiment Analytics Layers
-  sentiment: number;       // 0 = Negative, 1 = Neutral, 2 = Positive
-  intent: string | null;   // e.g., "express_financial_luck", "complaint_delay"
-  isSarcastic: boolean;    // Flags contextual irony (e.g., "Nanamian gid ko...")
-  
-  // ISO Date strings returned by your database
-  createdAt: string; 
+  sentiment: number;
+  intent: string | null;
+  isSarcastic: boolean;
+  register: string | null;
+  domain: string | null;
+
+  translationType: string;
+  confidence: number | null;
+  notes: string | null;
+
+  sourceLanguage: string;
+  targetLanguage: string;
+  sourceTextId: string;
+  targetTextId: string;
+
+  tokens: SentenceToken[];
+  grammarAnnotations: GrammarAnnotation[];
+
+  createdAt: string;
   updatedAt: string;
+}
+
+export interface TranslationInput {
+  english: string;
+  hiligaynon: string;
+  sentiment?: number;
+  intent?: string | null;
+  isSarcastic?: boolean;
+  status?: TranslationStatus;
+  translationType?: string;
+  confidence?: number | null;
+  notes?: string | null;
+  register?: string | null;
+  domain?: string | null;
 }
