@@ -110,8 +110,9 @@ export const getSentenceById = async (req: Request, res: Response) => {
   }
 };
 
-export const createSentence = async (req: HilitechRequest, res: Response) => {
+export const createSentence = async (req: Request, res: Response) => {
   try {
+    const authRequest = req as HilitechRequest;
     const {
       english,
       hiligaynon,
@@ -150,8 +151,8 @@ export const createSentence = async (req: HilitechRequest, res: Response) => {
       sentiment,
       intent,
       isSarcastic,
-      contributorIdentityId: req.hilitechUser?.identityId ?? null,
-      contributorType: req.hilitechUser ? "registered" : "guest",
+      contributorIdentityId: authRequest.hilitechUser?.identityId ?? null,
+      contributorType: authRequest.hilitechUser ? "registered" : "guest",
       translationType,
       confidence: parsedConfidence,
       notes,
@@ -178,7 +179,7 @@ export const createSentence = async (req: HilitechRequest, res: Response) => {
   }
 };
 
-export const updateSentence = async (req: HilitechRequest, res: Response) => {
+export const updateSentence = async (req: Request, res: Response) => {
   try {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!id) {
@@ -320,8 +321,9 @@ export const deleteSentencesBulk = async (req: Request, res: Response) => {
   }
 };
 
-export const castVote = async (req: HilitechRequest, res: Response) => {
+export const castVote = async (req: Request, res: Response) => {
   try {
+    const authRequest = req as HilitechRequest;
     const { sentenceId, type } = req.body;
 
     const ipAddress =
@@ -341,7 +343,7 @@ export const castVote = async (req: HilitechRequest, res: Response) => {
       sentenceId,
       ipAddress,
       type,
-      userId: req.hilitechUser?.identityId,
+      userId: authRequest.hilitechUser?.identityId,
     });
 
     if (!data) {
@@ -363,13 +365,14 @@ export const castVote = async (req: HilitechRequest, res: Response) => {
 
 
 export const updateSentenceStatus = async (
-  req: HilitechRequest,
+  req: Request,
   res: Response
 ) => {
   try {
+    const authRequest = req as HilitechRequest;
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const targetStatus = req.body.status as string | undefined;
-    const actor = req.hilitechUser;
+    const actor = authRequest.hilitechUser;
 
     if (!id) {
       return res.status(400).json({
