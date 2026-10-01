@@ -90,6 +90,8 @@ export const refreshHilitechSession = async (): Promise<HilitechSession> => {
 export const signOutFromHilitech = async () => {
   try {
     await authApi.post("/token/revoke", {});
+  } catch {
+    // Local sign-out must still succeed if the auth service is unavailable.
   } finally {
     storeHilitechSession(null);
   }
