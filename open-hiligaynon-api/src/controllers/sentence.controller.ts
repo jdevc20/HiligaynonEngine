@@ -9,13 +9,25 @@ const parseSentiment = (value: unknown) => {
   return Number.isNaN(parsed) ? NaN : parsed;
 };
 
-const validateSemanticInput = (sentiment: number | undefined, status?: string) => {
+const validateSemanticInput = (
+  sentiment: number | undefined,
+  status?: string,
+  confidence?: number | null
+) => {
   if (sentiment !== undefined && (Number.isNaN(sentiment) || sentiment < 0 || sentiment > 2)) {
     return "'sentiment' must be 0 (negative), 1 (neutral), or 2 (positive).";
   }
 
   if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
     return "'status' must be pending, verified, approved, or rejected.";
+  }
+
+  if (
+    confidence !== undefined &&
+    confidence !== null &&
+    (Number.isNaN(confidence) || confidence < 0 || confidence > 1)
+  ) {
+    return "'confidence' must be a number between 0 and 1.";
   }
 
   return null;
@@ -40,7 +52,7 @@ export const getSentences = async (req: Request, res: Response) => {
       });
     }
 
-    const validationError = validateSemanticInput(sentiment, status);
+    const validationError = validateSemanticInput(sentiment, status, parsedConfidence);
     if (validationError) {
       return res.status(400).json({
         error: "Validation failed",
@@ -112,6 +124,8 @@ export const createSentence = async (req: Request, res: Response) => {
     } = req.body;
 
     const sentiment = parseSentiment(req.body.sentiment);
+    const parsedConfidence =
+      confidence === undefined || confidence === null ? confidence : Number(confidence);
     const isSarcastic =
       req.body.isSarcastic === true || req.body.isSarcastic === "true";
 
@@ -138,7 +152,7 @@ export const createSentence = async (req: Request, res: Response) => {
       isSarcastic,
       status,
       translationType,
-      confidence: confidence === undefined ? undefined : Number(confidence),
+      confidence: parsedConfidence,
       notes,
       register,
       domain,
@@ -175,7 +189,22 @@ export const updateSentence = async (req: Request, res: Response) => {
 
     const sentiment = parseSentiment(req.body.sentiment);
     const status = req.body.status as string | undefined;
-    const validationError = validateSemanticInput(sentiment, status);
+    const parsedConfidence =
+      req.body.confidence === undefined || req.body.confidence === null
+        ? req.body.confidence
+        : Number(req.body.confidence);
+
+    if (
+      (req.body.english !== undefined && !String(req.body.english).trim()) ||
+      (req.body.hiligaynon !== undefined && !String(req.body.hiligaynon).trim())
+    ) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "Updated English/Hiligaynon text cannot be empty.",
+      });
+    }
+
+    const validationError = validateSemanticInput(sentiment, status, parsedConfidence);
 
     if (validationError) {
       return res.status(400).json({
@@ -197,7 +226,7 @@ export const updateSentence = async (req: Request, res: Response) => {
         ? { translationType: String(req.body.translationType) }
         : {}),
       ...(req.body.confidence !== undefined
-        ? { confidence: req.body.confidence === null ? null : Number(req.body.confidence) }
+        ? { confidence: parsedConfidence }
         : {}),
       ...(req.body.notes !== undefined ? { notes: req.body.notes } : {}),
       ...(req.body.register !== undefined ? { register: req.body.register } : {}),
