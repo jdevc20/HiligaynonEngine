@@ -1,160 +1,260 @@
 import { Request, Response } from "express";
 import * as sentenceService from "../services/sentence.service.js";
 
+const ALLOWED_STATUSES = new Set(["pending", "verified", "approved", "rejected"]);
+
+const parseSentiment = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  return Number.isNaN(parsed) ? NaN : parsed;
+};
+
+const validateSemanticInput = (sentiment: number | undefined, status?: string) => {
+  if (sentiment !== undefined && (Number.isNaN(sentiment) || sentiment < 0 || sentiment > 2)) {
+    return "'sentiment' must be 0 (negative), 1 (neutral), or 2 (positive).";
+  }
+
+  if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+    return "'status' must be pending, verified, approved, or rejected.";
+  }
+
+  return null;
+};
+
 export const getSentences = async (req: Request, res: Response) => {
   try {
-    const rawPage = req.query.page;
-    const rawLimit = req.query.limit;
-    const rawSearch = req.query.search;
-    const rawSentiment = req.query.sentiment;
-    const rawIsSarcastic = req.query.isSarcastic;
-    const rawStatus = req.query.status;
+    const page = typeof req.query.page === "string" ? Number.parseInt(req.query.page, 10) : 1;
+    const limit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : 50;
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    const sentiment = parseSentiment(req.query.sentiment);
+    const isSarcastic =
+      typeof req.query.isSarcastic === "string"
+        ? req.query.isSarcastic === "true"
+        : undefined;
 
-    // Radix parameters and basic data transformations
-    const page = typeof rawPage === "string" ? parseInt(rawPage, 10) : 1;
-    const limit = typeof rawLimit === "string" ? parseInt(rawLimit, 10) : 50;
-    const search = typeof rawSearch === "string" ? rawSearch : undefined;
-    const status = typeof rawStatus === "string" ? rawStatus : undefined;
-    
-    // Evaluate explicit filters safely
-    const sentiment = typeof rawSentiment === "string" ? parseInt(rawSentiment, 10) : undefined;
-    const isSarcastic = typeof rawIsSarcastic === "string" ? rawIsSarcastic === "true" : undefined;
-
-    // Validation layers to safeguard database pipelines
-    if (isNaN(page) || page < 1 || isNaN(limit) || limit < 1) {
-      return res.status(400).json({ 
-        error: "Invalid pagination parameter", 
-        details: "'page' and 'limit' must be positive integers." 
-      });
-    }
-
-    if (sentiment !== undefined && (isNaN(sentiment) || sentiment < 0 || sentiment > 2)) {
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 200) {
       return res.status(400).json({
-        error: "Invalid analytics parameter",
-        details: "'sentiment' must be an integer: 0 (Negative), 1 (Neutral), or 2 (Positive)."
+        error: "Invalid pagination parameter",
+        details: "'page' must be positive and 'limit' must be between 1 and 200.",
       });
     }
 
-    const skip = (page - 1) * limit;
+    const validationError = validateSemanticInput(sentiment, status);
+    if (validationError) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: validationError,
+      });
+    }
 
     const result = await sentenceService.getAllSentences({
-      skip,
+      skip: (page - 1) * limit,
       take: limit,
       search,
       sentiment,
       isSarcastic,
-      status
+      status,
     });
 
     return res.status(200).json(result);
   } catch (error: any) {
     console.error("[getSentences Error]:", error);
-    return res.status(500).json({ 
-      error: "Failed to fetch sentences",
-      details: error?.message || "An unexpected error occurred."
+    return res.status(500).json({
+      error: "Failed to fetch translations",
+      details: error?.message || "An unexpected error occurred.",
     });
   }
 };
 
 export const getSentenceById = async (req: Request, res: Response) => {
   try {
-    const rawId = req.params.id;
-    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     if (!id) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Missing required parameter",
-        details: "A valid sentence ID is required."
+        details: "A valid translation ID is required.",
       });
     }
 
     const data = await sentenceService.getSentenceById(id);
 
     if (!data) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: "Resource not found",
-        details: `No sentence found with the ID: ${id}`
+        details: `No translation found with ID: ${id}`,
       });
     }
 
-    return res.status(200).json({ data });
+    return res.status(200).json(data);
   } catch (error: any) {
     console.error("[getSentenceById Error]:", error);
-    return res.status(500).json({ 
-      error: "Failed to fetch the sentence",
-      details: error?.message || "An unexpected error occurred."
+    return res.status(500).json({
+      error: "Failed to fetch the translation",
+      details: error?.message || "An unexpected error occurred.",
     });
   }
 };
 
 export const createSentence = async (req: Request, res: Response) => {
   try {
-    const { english, hiligaynon, sentiment, intent, isSarcastic, status } = req.body;
+    const {
+      english,
+      hiligaynon,
+      intent,
+      status,
+      translationType,
+      confidence,
+      notes,
+      register,
+      domain,
+    } = req.body;
 
-    if (!english || !hiligaynon) {
+    const sentiment = parseSentiment(req.body.sentiment);
+    const isSarcastic =
+      req.body.isSarcastic === true || req.body.isSarcastic === "true";
+
+    if (typeof english !== "string" || !english.trim() || typeof hiligaynon !== "string" || !hiligaynon.trim()) {
       return res.status(400).json({
         error: "Validation failed",
-        details: "Both 'english' and 'hiligaynon' fields are required.",
+        details: "Both 'english' and 'hiligaynon' must be non-empty strings.",
+      });
+    }
+
+    const validationError = validateSemanticInput(sentiment, status);
+    if (validationError) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: validationError,
       });
     }
 
     const data = await sentenceService.createSentence({
-      english,
-      hiligaynon,
-      sentiment: sentiment !== undefined ? parseInt(sentiment, 10) : undefined,
+      english: english.trim(),
+      hiligaynon: hiligaynon.trim(),
+      sentiment,
       intent,
-      isSarcastic: isSarcastic === true || isSarcastic === "true",
-      status
+      isSarcastic,
+      status,
+      translationType,
+      confidence: confidence === undefined ? undefined : Number(confidence),
+      notes,
+      register,
+      domain,
     });
 
     return res.status(201).json({ data });
   } catch (error: any) {
     console.error("[createSentence Error]:", error);
-    
+
     if (error?.code === "P2002") {
-      return res.status(409).json({ 
-        error: "Conflict", 
-        details: "A sentence with this text already exists.",
-        code: error.code
+      return res.status(409).json({
+        error: "Conflict",
+        details: "This translation pair already exists.",
+        code: error.code,
       });
     }
 
-    return res.status(500).json({ 
-      error: "Failed to create the sentence",
-      details: error?.message || "An unexpected error occurred." 
+    return res.status(500).json({
+      error: "Failed to create the translation",
+      details: error?.message || "An unexpected error occurred.",
+    });
+  }
+};
+
+export const updateSentence = async (req: Request, res: Response) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!id) {
+      return res.status(400).json({
+        error: "Missing required parameter",
+        details: "A valid translation ID is required.",
+      });
+    }
+
+    const sentiment = parseSentiment(req.body.sentiment);
+    const status = req.body.status as string | undefined;
+    const validationError = validateSemanticInput(sentiment, status);
+
+    if (validationError) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: validationError,
+      });
+    }
+
+    const data = await sentenceService.updateSentence(id, {
+      ...(req.body.english !== undefined ? { english: String(req.body.english).trim() } : {}),
+      ...(req.body.hiligaynon !== undefined ? { hiligaynon: String(req.body.hiligaynon).trim() } : {}),
+      ...(sentiment !== undefined ? { sentiment } : {}),
+      ...(req.body.intent !== undefined ? { intent: req.body.intent } : {}),
+      ...(req.body.isSarcastic !== undefined
+        ? { isSarcastic: req.body.isSarcastic === true || req.body.isSarcastic === "true" }
+        : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(req.body.translationType !== undefined
+        ? { translationType: String(req.body.translationType) }
+        : {}),
+      ...(req.body.confidence !== undefined
+        ? { confidence: req.body.confidence === null ? null : Number(req.body.confidence) }
+        : {}),
+      ...(req.body.notes !== undefined ? { notes: req.body.notes } : {}),
+      ...(req.body.register !== undefined ? { register: req.body.register } : {}),
+      ...(req.body.domain !== undefined ? { domain: req.body.domain } : {}),
+    });
+
+    if (!data) {
+      return res.status(404).json({
+        error: "Resource not found",
+        details: `No translation found with ID: ${id}`,
+      });
+    }
+
+    return res.status(200).json({ data });
+  } catch (error: any) {
+    console.error("[updateSentence Error]:", error);
+
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        error: "Conflict",
+        details: "The updated translation would duplicate an existing translation pair.",
+      });
+    }
+
+    return res.status(500).json({
+      error: "Failed to update the translation",
+      details: error?.message || "An unexpected error occurred.",
     });
   }
 };
 
 export const deleteSentence = async (req: Request, res: Response) => {
   try {
-    const rawId = req.params.id;
-    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     if (!id) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Missing required parameter",
-        details: "A valid sentence ID is required."
+        details: "A valid translation ID is required.",
       });
     }
 
     await sentenceService.deleteSentence(id);
-
-    return res.status(200).json({ message: "Sentence deleted successfully" });
+    return res.status(200).json({ message: "Translation deleted successfully" });
   } catch (error: any) {
     console.error("[deleteSentence Error]:", error);
 
     if (error?.code === "P2025") {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: "Resource not found",
-        details: "Cannot delete because the specified sentence does not exist.",
-        code: error.code
+        details: "The specified translation does not exist.",
       });
     }
 
-    return res.status(500).json({ 
-      error: "Failed to delete the sentence",
-      details: error?.message || "An unexpected error occurred."
+    return res.status(500).json({
+      error: "Failed to delete the translation",
+      details: error?.message || "An unexpected error occurred.",
     });
   }
 };
@@ -163,77 +263,65 @@ export const deleteSentencesBulk = async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === "string")) {
       return res.status(400).json({
         error: "Validation failed",
-        details: "The 'ids' field must be a non-empty array of strings."
+        details: "'ids' must be a non-empty array of translation IDs.",
       });
     }
 
     const result = await sentenceService.deleteSentencesBulk(ids);
 
     return res.status(200).json({
-      message: "Sentences deleted successfully",
-      deletedCount: result.count
+      message: "Translations deleted successfully",
+      deletedCount: result.count,
     });
   } catch (error: any) {
     console.error("[deleteSentencesBulk Error]:", error);
     return res.status(500).json({
       error: "Failed to perform bulk deletion",
-      details: error?.message || "An unexpected error occurred."
+      details: error?.message || "An unexpected error occurred.",
     });
   }
 };
 
-// 🆕 NEW: Thread-safe voting controller endpoint
 export const castVote = async (req: Request, res: Response) => {
   try {
     const { sentenceId, type, userId } = req.body;
-    
-    // Fallbacks to extract network identifier accurately across reverse proxies (e.g., Nginx, Cloudflare)
-    const ipAddress = 
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0].trim() || 
-      req.ip || 
-      req.socket.remoteAddress || 
+
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.ip ||
+      req.socket.remoteAddress ||
       "anonymous_client";
 
-    if (!sentenceId || !type || (type !== "UP" && type !== "DOWN")) {
+    if (!sentenceId || (type !== "UP" && type !== "DOWN")) {
       return res.status(400).json({
         error: "Validation failed",
-        details: "'sentenceId' is required, and 'type' must be explicitly 'UP' or 'DOWN'."
+        details: "'sentenceId' is required and 'type' must be 'UP' or 'DOWN'.",
       });
     }
 
-    const updatedSentence = await sentenceService.castVote({
+    const data = await sentenceService.castVote({
       sentenceId,
       ipAddress,
       type,
-      userId
+      userId,
     });
 
-    return res.status(200).json({ data: updatedSentence });
+    if (!data) {
+      return res.status(404).json({
+        error: "Resource not found",
+        details: "The specified translation does not exist.",
+      });
+    }
+
+    return res.status(200).json({ data });
   } catch (error: any) {
     console.error("[castVote Error]:", error);
     return res.status(500).json({
       error: "Failed to register vote",
-      details: error?.message || "An unexpected error occurred."
+      details: error?.message || "An unexpected error occurred.",
     });
   }
 };
-
-export const migrateDatabase = async (req: Request, res: Response) => {
-  try {
-    const result = await sentenceService.runMigrations();
-
-    res.status(200).json({
-      message: "Migration executed successfully",
-      output: result,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      message: "Migration failed",
-      error: error.message,
-    });
-  }
-};
-
