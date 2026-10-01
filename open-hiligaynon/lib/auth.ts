@@ -22,6 +22,7 @@ export interface HilitechSession {
 }
 
 const STORAGE_KEY = "hiligaynon.hilitech.session";
+export const HILITECH_SESSION_EVENT = "hiligaynon:hilitech-session";
 const authBaseURL =
   process.env.NEXT_PUBLIC_HILITECH_AUTH_URL ||
   "https://hilitech-auth-service.onrender.com/api";
@@ -49,10 +50,13 @@ export const storeHilitechSession = (session: HilitechSession | null) => {
 
   if (!session) {
     window.sessionStorage.removeItem(STORAGE_KEY);
-    return;
+  } else {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   }
 
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  window.dispatchEvent(
+    new CustomEvent(HILITECH_SESSION_EVENT, { detail: session })
+  );
 };
 
 export const signInWithHilitech = async (
