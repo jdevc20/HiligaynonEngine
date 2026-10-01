@@ -27,8 +27,8 @@ const capabilities = [
     title: "Training-ready data",
     description:
       "The backend separates corpus records, provenance, annotations, and dataset splits for model-training workflows.",
-    href: "/sentences/create",
-    action: "Contribute data",
+    href: "/datasets",
+    action: "Inspect datasets",
   },
 ];
 
