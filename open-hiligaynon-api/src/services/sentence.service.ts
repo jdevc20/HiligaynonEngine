@@ -53,6 +53,8 @@ export interface CreateSentenceInput {
   intent?: string | null;
   isSarcastic?: boolean;
   status?: string;
+  contributorIdentityId?: string | null;
+  contributorType?: "guest" | "registered";
   translationType?: string;
   confidence?: number | null;
   notes?: string | null;
@@ -82,6 +84,12 @@ const toSentenceDto = (record: SentenceRecord) => {
     translationType: record.translationType,
     confidence: record.confidence,
     notes: record.notes,
+    contributorIdentityId: record.contributorIdentityId,
+    contributorType: record.contributorType,
+    approvedByIdentityId: record.approvedByIdentityId,
+    approvedAt: record.approvedAt,
+    verifiedByIdentityId: record.verifiedByIdentityId,
+    verifiedAt: record.verifiedAt,
     sourceLanguage: record.sourceText.language.code,
     targetLanguage: record.targetText.language.code,
     sourceTextId: record.sourceTextId,
@@ -314,7 +322,9 @@ export const createSentence = async (data: CreateSentenceInput) => {
       data: {
         sourceTextId: sourceText.id,
         targetTextId: targetText.id,
-        status: data.status ?? "pending",
+        status: "pending",
+        contributorIdentityId: data.contributorIdentityId ?? null,
+        contributorType: data.contributorType ?? "guest",
         translationType: data.translationType ?? "natural",
         confidence: data.confidence ?? null,
         notes: data.notes ?? null,
@@ -327,7 +337,11 @@ export const createSentence = async (data: CreateSentenceInput) => {
   return getSentenceById(translationId);
 };
 
-export const updateSentence = async (id: string, data: UpdateSentenceInput) => {
+export const updateSentence = async (
+  id: string,
+  data: UpdateSentenceInput,
+  resetModeration = false
+) => {
   const existing = await prisma.translation.findUnique({
     where: { id },
   });
@@ -366,7 +380,15 @@ export const updateSentence = async (id: string, data: UpdateSentenceInput) => {
       data: {
         sourceTextId,
         targetTextId,
-        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(resetModeration
+          ? {
+              status: "pending",
+              approvedByIdentityId: null,
+              approvedAt: null,
+              verifiedByIdentityId: null,
+              verifiedAt: null,
+            }
+          : {}),
         ...(data.translationType !== undefined
           ? { translationType: data.translationType }
           : {}),
@@ -478,4 +500,40 @@ export const castVote = async (data: CastVoteInput) => {
   });
 
   return getSentenceById(sentenceId);
+};
+
+
+export type ModerationTargetStatus = "approved" | "verified";
+
+export const setModerationStatus = async (
+  id: string,
+  targetStatus: ModerationTargetStatus,
+  actorIdentityId: string
+) => {
+  const now = new Date();
+
+  const result =
+    targetStatus === "approved"
+      ? await prisma.translation.updateMany({
+          where: { id, status: "pending" },
+          data: {
+            status: "approved",
+            approvedByIdentityId: actorIdentityId,
+            approvedAt: now,
+          },
+        })
+      : await prisma.translation.updateMany({
+          where: { id, status: "approved" },
+          data: {
+            status: "verified",
+            verifiedByIdentityId: actorIdentityId,
+            verifiedAt: now,
+          },
+        });
+
+  if (result.count !== 1) {
+    return null;
+  }
+
+  return getSentenceById(id);
 };

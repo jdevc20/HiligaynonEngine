@@ -59,3 +59,12 @@ export const castVote = async (data: {
   const res = await api.post("/sentences/vote", data);
   return res.data;
 };
+
+
+export const moderateSentence = async (
+  id: string,
+  status: "approved" | "verified"
+) => {
+  const res = await api.patch(`/sentences/${id}/status`, { status });
+  return res.data;
+};

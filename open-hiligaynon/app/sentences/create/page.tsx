@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { SentenceService } from "@/services/sentenceService";
-import type { TranslationStatus } from "@/types/sentence";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function CreateSentencePage() {
   const router = useRouter();
+  const { session } = useAuth();
 
   const [english, setEnglish] = useState("");
   const [hiligaynon, setHiligaynon] = useState("");
-  const [status, setStatus] = useState<TranslationStatus>("pending");
   const [sentiment, setSentiment] = useState(1);
   const [intent, setIntent] = useState("");
   const [domain, setDomain] = useState("");
@@ -53,7 +53,6 @@ export default function CreateSentencePage() {
       const response = await SentenceService.create({
         english: english.trim(),
         hiligaynon: hiligaynon.trim(),
-        status,
         sentiment,
         intent: intent.trim() || null,
         domain: domain.trim() || null,
@@ -104,8 +103,18 @@ export default function CreateSentencePage() {
           </Link>
         </div>
 
+        <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+          <p className="font-semibold">
+            {session ? "Signed-in contribution" : "Guest contribution"}
+          </p>
+          <p className="mt-1 text-blue-800/80 dark:text-blue-200/80">
+            Every new contribution is saved as Pending. Signed-in Hilitech users
+            can approve pending records, and Hilitech admins can verify approved records.
+          </p>
+        </div>
+
         {error && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         )}
@@ -142,22 +151,6 @@ export default function CreateSentencePage() {
           <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="text-lg font-bold">Linguistic metadata</h2>
             <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="text-sm font-semibold">
-                Verification status
-                <select
-                  value={status}
-                  onChange={(event) =>
-                    setStatus(event.target.value as TranslationStatus)
-                  }
-                  className={inputClass}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="verified">Verified</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </label>
-
               <label className="text-sm font-semibold">
                 Sentiment
                 <select

@@ -29,6 +29,10 @@ export const SentenceService = {
     return sentenceApi.updateSentence(id, data);
   },
 
+  async moderate(id: string, status: "approved" | "verified") {
+    return sentenceApi.moderateSentence(id, status);
+  },
+
   async removeBulk(ids: string[]) {
     return sentenceApi.deleteSentencesBulk(ids);
   },

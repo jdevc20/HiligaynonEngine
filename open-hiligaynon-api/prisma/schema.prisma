@@ -48,9 +48,15 @@ model Translation {
   status          String              @default("pending")
   translationType String              @default("natural")
   confidence      Float?
-  notes           String?
-  upVotes         Int                 @default(0)
-  downVotes       Int                 @default(0)
+  notes                   String?
+  contributorIdentityId   String?
+  contributorType         String              @default("guest")
+  approvedByIdentityId    String?
+  approvedAt              DateTime?
+  verifiedByIdentityId    String?
+  verifiedAt              DateTime?
+  upVotes                 Int                 @default(0)
+  downVotes               Int                 @default(0)
   votes           TranslationVote[]
   datasetItems    DatasetItem[]
   sources         TranslationSource[]
@@ -59,6 +65,7 @@ model Translation {
 
   @@index([sourceTextId, targetTextId])
   @@index([status])
+  @@index([contributorIdentityId])
   @@index([createdAt(sort: Desc)])
 }
 
