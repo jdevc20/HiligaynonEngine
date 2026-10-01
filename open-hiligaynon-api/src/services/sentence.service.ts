@@ -337,7 +337,11 @@ export const createSentence = async (data: CreateSentenceInput) => {
   return getSentenceById(translationId);
 };
 
-export const updateSentence = async (id: string, data: UpdateSentenceInput) => {
+export const updateSentence = async (
+  id: string,
+  data: UpdateSentenceInput,
+  resetModeration = false
+) => {
   const existing = await prisma.translation.findUnique({
     where: { id },
   });
@@ -376,6 +380,15 @@ export const updateSentence = async (id: string, data: UpdateSentenceInput) => {
       data: {
         sourceTextId,
         targetTextId,
+        ...(resetModeration
+          ? {
+              status: "pending",
+              approvedByIdentityId: null,
+              approvedAt: null,
+              verifiedByIdentityId: null,
+              verifiedAt: null,
+            }
+          : {}),
         ...(data.translationType !== undefined
           ? { translationType: data.translationType }
           : {}),
