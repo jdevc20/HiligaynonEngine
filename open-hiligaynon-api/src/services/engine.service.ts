@@ -211,3 +211,184 @@ export const exportDataset = async (
     })),
   };
 };
+
+
+export interface GenerateDatasetInput {
+  name: string;
+  version: string;
+  description?: string | null;
+  license?: string | null;
+  domain?: string;
+  register?: string;
+  minConfidence?: number;
+  maxItems: number;
+  excludeSarcastic: boolean;
+  requireProvenance: boolean;
+  trainPercent: number;
+  validationPercent: number;
+  testPercent: number;
+  generatedByIdentityId: string;
+}
+
+export const generateDataset = async (input: GenerateDatasetInput) => {
+  const targetAnnotationFilter: Prisma.LinguisticAnnotationWhereInput = {};
+
+  if (input.domain) {
+    targetAnnotationFilter.domain = input.domain;
+  }
+
+  if (input.register) {
+    targetAnnotationFilter.register = input.register;
+  }
+
+  if (input.excludeSarcastic) {
+    targetAnnotationFilter.isSarcastic = false;
+  }
+
+  const targetTextFilter: Prisma.TextUnitWhereInput = {
+    language: {
+      is: {
+        code: "hil",
+      },
+    },
+  };
+
+  if (Object.keys(targetAnnotationFilter).length > 0) {
+    targetTextFilter.annotation = {
+      is: targetAnnotationFilter,
+    };
+  }
+
+  const eligibleTranslations = await prisma.translation.findMany({
+    where: {
+      status: "verified",
+      sourceText: {
+        is: {
+          language: {
+            is: {
+              code: "en",
+            },
+          },
+        },
+      },
+      targetText: {
+        is: targetTextFilter,
+      },
+      ...(input.minConfidence !== undefined
+        ? {
+            confidence: {
+              gte: input.minConfidence,
+            },
+          }
+        : {}),
+      ...(input.requireProvenance
+        ? {
+            sources: {
+              some: {},
+            },
+          }
+        : {}),
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      id: "asc",
+    },
+    take: input.maxItems,
+  });
+
+  if (eligibleTranslations.length === 0) {
+    return null;
+  }
+
+  const total = eligibleTranslations.length;
+  const splitForIndex = (index: number) => {
+    const percentile = ((index + 0.5) / total) * 100;
+
+    if (percentile <= input.trainPercent) {
+      return "train";
+    }
+
+    if (percentile <= input.trainPercent + input.validationPercent) {
+      return "validation";
+    }
+
+    return "test";
+  };
+
+  const itemData = eligibleTranslations.map((translation, index) => ({
+    translationId: translation.id,
+    split: splitForIndex(index),
+    weight: 1,
+  }));
+
+  const splitCounts = itemData.reduce(
+    (counts, item) => {
+      counts[item.split as keyof typeof counts] += 1;
+      return counts;
+    },
+    {
+      train: 0,
+      validation: 0,
+      test: 0,
+    }
+  );
+
+  const generationConfig = {
+    status: "verified",
+    sourceLanguage: "en",
+    targetLanguage: "hil",
+    domain: input.domain ?? null,
+    register: input.register ?? null,
+    minConfidence: input.minConfidence ?? null,
+    maxItems: input.maxItems,
+    excludeSarcastic: input.excludeSarcastic,
+    requireProvenance: input.requireProvenance,
+    splits: {
+      train: input.trainPercent,
+      validation: input.validationPercent,
+      test: input.testPercent,
+    },
+  };
+
+  const dataset = await prisma.$transaction(async (tx) => {
+    const created = await tx.dataset.create({
+      data: {
+        name: input.name,
+        version: input.version,
+        description: input.description ?? null,
+        license: input.license ?? null,
+        generationConfig,
+        generatedByIdentityId: input.generatedByIdentityId,
+        generatedAt: new Date(),
+      },
+    });
+
+    await tx.datasetItem.createMany({
+      data: itemData.map((item) => ({
+        datasetId: created.id,
+        translationId: item.translationId,
+        split: item.split,
+        weight: item.weight,
+      })),
+    });
+
+    return created;
+  });
+
+  return {
+    dataset: {
+      id: dataset.id,
+      name: dataset.name,
+      version: dataset.version,
+      description: dataset.description,
+      license: dataset.license,
+      generatedByIdentityId: dataset.generatedByIdentityId,
+      generatedAt: dataset.generatedAt,
+      generationConfig: dataset.generationConfig,
+    },
+    count: total,
+    splits: splitCounts,
+  };
+};

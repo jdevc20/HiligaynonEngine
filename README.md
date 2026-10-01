@@ -100,6 +100,7 @@ Base path: `/api/sentences`
 | `PATCH` | `/api/sentences/:id` | Update translation content (Hilitech sign-in required) |
 | `PATCH` | `/api/sentences/:id/status` | Moderate status: Pending → Approved → Verified |
 | `DELETE` | `/api/sentences/:id` | Delete a translation (Hilitech admin required) |
+| `POST` | `/api/engine/datasets/generate` | Generate a versioned dataset from Verified records (Hilitech admin required) |
 | `POST` | `/api/sentences/bulk-delete` | Delete multiple translations |
 | `POST` | `/api/sentences/vote` | Upvote, downvote, switch, or remove a vote |
 
@@ -117,6 +118,8 @@ The contribution workflow is enforced by the API:
 - Status cannot be changed through the normal translation update endpoint.
 
 `Translation` stores the contributor identity when available plus the Hilitech identity and timestamp of approval/verification. Guest submissions intentionally have no Hilitech identity.
+
+Dataset generation is available in the frontend at `/datasets/generate`. The form is shown only to Hilitech `ADMIN` / `SUPER_ADMIN` users, and the API independently enforces the same permission. Generated datasets store their split membership plus generation filters, generating Hilitech `IdentityId`, and generation timestamp for reproducibility.
 
 The old HTTP migration endpoint was removed. Production migrations run through the deployment process instead of being triggerable over a public API.
 

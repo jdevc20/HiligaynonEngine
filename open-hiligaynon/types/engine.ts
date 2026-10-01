@@ -91,3 +91,39 @@ export interface DatasetExportResponse {
   count: number;
   items: DatasetExportItem[];
 }
+
+
+export interface GenerateDatasetInput {
+  name: string;
+  version: string;
+  description?: string | null;
+  license?: string | null;
+  domain?: string;
+  register?: string;
+  minConfidence?: number;
+  maxItems: number;
+  excludeSarcastic: boolean;
+  requireProvenance: boolean;
+  trainPercent: number;
+  validationPercent: number;
+  testPercent: number;
+}
+
+export interface GeneratedDatasetResult {
+  dataset: {
+    id: string;
+    name: string;
+    version: string;
+    description: string | null;
+    license: string | null;
+    generatedByIdentityId: string | null;
+    generatedAt: string | null;
+    generationConfig: Record<string, unknown> | null;
+  };
+  count: number;
+  splits: {
+    train: number;
+    validation: number;
+    test: number;
+  };
+}
