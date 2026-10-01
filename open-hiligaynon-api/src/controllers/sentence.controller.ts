@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { HilitechRequest } from "../middleware/hilitech-auth.middleware.js";
 import * as sentenceService from "../services/sentence.service.js";
 
 const ALLOWED_STATUSES = new Set(["pending", "verified", "approved", "rejected"]);
@@ -109,13 +110,12 @@ export const getSentenceById = async (req: Request, res: Response) => {
   }
 };
 
-export const createSentence = async (req: Request, res: Response) => {
+export const createSentence = async (req: HilitechRequest, res: Response) => {
   try {
     const {
       english,
       hiligaynon,
       intent,
-      status,
       translationType,
       confidence,
       notes,
@@ -136,7 +136,7 @@ export const createSentence = async (req: Request, res: Response) => {
       });
     }
 
-    const validationError = validateSemanticInput(sentiment, status, parsedConfidence);
+    const validationError = validateSemanticInput(sentiment, undefined, parsedConfidence);
     if (validationError) {
       return res.status(400).json({
         error: "Validation failed",
@@ -150,7 +150,8 @@ export const createSentence = async (req: Request, res: Response) => {
       sentiment,
       intent,
       isSarcastic,
-      status,
+      contributorIdentityId: req.hilitechUser?.identityId ?? null,
+      contributorType: req.hilitechUser ? "registered" : "guest",
       translationType,
       confidence: parsedConfidence,
       notes,
@@ -177,7 +178,7 @@ export const createSentence = async (req: Request, res: Response) => {
   }
 };
 
-export const updateSentence = async (req: Request, res: Response) => {
+export const updateSentence = async (req: HilitechRequest, res: Response) => {
   try {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!id) {
@@ -187,8 +188,14 @@ export const updateSentence = async (req: Request, res: Response) => {
       });
     }
 
+    if (req.body.status !== undefined) {
+      return res.status(400).json({
+        error: "Use the moderation endpoint",
+        details: "Translation status can only be changed through PATCH /api/sentences/:id/status.",
+      });
+    }
+
     const sentiment = parseSentiment(req.body.sentiment);
-    const status = req.body.status as string | undefined;
     const parsedConfidence =
       req.body.confidence === undefined || req.body.confidence === null
         ? req.body.confidence
@@ -204,7 +211,7 @@ export const updateSentence = async (req: Request, res: Response) => {
       });
     }
 
-    const validationError = validateSemanticInput(sentiment, status, parsedConfidence);
+    const validationError = validateSemanticInput(sentiment, undefined, parsedConfidence);
 
     if (validationError) {
       return res.status(400).json({
@@ -221,7 +228,6 @@ export const updateSentence = async (req: Request, res: Response) => {
       ...(req.body.isSarcastic !== undefined
         ? { isSarcastic: req.body.isSarcastic === true || req.body.isSarcastic === "true" }
         : {}),
-      ...(status !== undefined ? { status } : {}),
       ...(req.body.translationType !== undefined
         ? { translationType: String(req.body.translationType) }
         : {}),
@@ -314,9 +320,9 @@ export const deleteSentencesBulk = async (req: Request, res: Response) => {
   }
 };
 
-export const castVote = async (req: Request, res: Response) => {
+export const castVote = async (req: HilitechRequest, res: Response) => {
   try {
-    const { sentenceId, type, userId } = req.body;
+    const { sentenceId, type } = req.body;
 
     const ipAddress =
       (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
@@ -335,7 +341,7 @@ export const castVote = async (req: Request, res: Response) => {
       sentenceId,
       ipAddress,
       type,
-      userId,
+      userId: req.hilitechUser?.identityId,
     });
 
     if (!data) {
@@ -350,6 +356,94 @@ export const castVote = async (req: Request, res: Response) => {
     console.error("[castVote Error]:", error);
     return res.status(500).json({
       error: "Failed to register vote",
+      details: error?.message || "An unexpected error occurred.",
+    });
+  }
+};
+
+
+export const updateSentenceStatus = async (
+  req: HilitechRequest,
+  res: Response
+) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const targetStatus = req.body.status as string | undefined;
+    const actor = req.hilitechUser;
+
+    if (!id) {
+      return res.status(400).json({
+        error: "Missing required parameter",
+        details: "A valid translation ID is required.",
+      });
+    }
+
+    if (!actor) {
+      return res.status(401).json({
+        error: "Authentication required",
+        details: "Sign in with Hilitech Authentication to moderate contributions.",
+      });
+    }
+
+    if (targetStatus !== "approved" && targetStatus !== "verified") {
+      return res.status(400).json({
+        error: "Invalid moderation status",
+        details: "Registered users may approve pending contributions; admins may verify approved contributions.",
+      });
+    }
+
+    const existing = await sentenceService.getSentenceById(id);
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "Resource not found",
+        details: `No translation found with ID: ${id}`,
+      });
+    }
+
+    if (targetStatus === "approved") {
+      if (existing.status !== "pending") {
+        return res.status(409).json({
+          error: "Invalid status transition",
+          details: `Only pending contributions can be approved. Current status: ${existing.status}.`,
+        });
+      }
+    } else {
+      const isAdmin = actor.role === "ADMIN" || actor.role === "SUPER_ADMIN";
+
+      if (!isAdmin) {
+        return res.status(403).json({
+          error: "Admin permission required",
+          details: "Only Hilitech ADMIN or SUPER_ADMIN accounts can verify contributions.",
+        });
+      }
+
+      if (existing.status !== "approved") {
+        return res.status(409).json({
+          error: "Invalid status transition",
+          details: `Only approved contributions can be verified. Current status: ${existing.status}.`,
+        });
+      }
+    }
+
+    const data = await sentenceService.setModerationStatus(
+      id,
+      targetStatus,
+      actor.identityId
+    );
+
+    if (!data) {
+      return res.status(409).json({
+        error: "Status changed concurrently",
+        details: "The contribution changed while it was being moderated. Refresh and try again.",
+      });
+    }
+
+    return res.status(200).json({ data });
+  } catch (error: any) {
+    console.error("[updateSentenceStatus Error]:", error);
+    return res.status(500).json({
+      error: "Failed to update moderation status",
       details: error?.message || "An unexpected error occurred.",
     });
   }
