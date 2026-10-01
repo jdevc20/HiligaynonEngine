@@ -109,10 +109,11 @@ export const verifyHilitechAccessToken = (token: string): HilitechPrincipal => {
 };
 
 export const optionalHilitechAuth = (
-  req: HilitechRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
+  const authRequest = req as HilitechRequest;
   const authorization = req.headers.authorization;
 
   if (!authorization) {
@@ -129,7 +130,7 @@ export const optionalHilitechAuth = (
   }
 
   try {
-    req.hilitechUser = verifyHilitechAccessToken(token);
+    authRequest.hilitechUser = verifyHilitechAccessToken(token);
     return next();
   } catch (error: any) {
     const configurationError =
@@ -143,11 +144,11 @@ export const optionalHilitechAuth = (
 };
 
 export const requireHilitechAuth = (
-  req: HilitechRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  if (!req.hilitechUser) {
+  if (!(req as HilitechRequest).hilitechUser) {
     return res.status(401).json({
       error: "Authentication required",
       details: "Sign in with Hilitech Authentication to perform this action.",
@@ -158,11 +159,11 @@ export const requireHilitechAuth = (
 };
 
 export const requireHilitechAdmin = (
-  req: HilitechRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const role = req.hilitechUser?.role;
+  const role = (req as HilitechRequest).hilitechUser?.role;
 
   if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
     return res.status(403).json({
