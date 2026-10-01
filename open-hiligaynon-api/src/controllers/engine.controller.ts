@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { HilitechRequest } from "../middleware/hilitech-auth.middleware.js";
 import * as engineService from "../services/engine.service.js";
 
 export const dictionaryLookup = async (req: Request, res: Response) => {
@@ -97,6 +98,15 @@ export const datasetExport = async (req: Request, res: Response) => {
 
 export const generateDataset = async (req: Request, res: Response) => {
   try {
+    const authRequest = req as HilitechRequest;
+    const actor = authRequest.hilitechUser;
+
+    if (!actor) {
+      return res.status(401).json({
+        error: "Authentication required",
+        details: "Hilitech admin authentication is required to generate datasets.",
+      });
+    }
     const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
     const version =
       typeof req.body.version === "string" ? req.body.version.trim() : "1.0";
@@ -189,7 +199,7 @@ export const generateDataset = async (req: Request, res: Response) => {
           value < 0 ||
           value > 100
       ) ||
-      trainPercent + validationPercent + testPercent !== 100
+      Math.abs(trainPercent + validationPercent + testPercent - 100) > 0.0001
     ) {
       return res.status(400).json({
         error: "Validation failed",
@@ -212,6 +222,7 @@ export const generateDataset = async (req: Request, res: Response) => {
       trainPercent,
       validationPercent,
       testPercent,
+      generatedByIdentityId: actor.identityId,
     });
 
     if (!data) {
