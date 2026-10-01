@@ -2,32 +2,32 @@ import express from "express";
 import cors from "cors";
 
 import sentenceRoutes from "./routes/sentence.routes.js";
+import engineRoutes from "./routes/engine.routes.js";
 
 const app = express();
 
-/**
- * Middleware
- */
 app.use(
   cors({
-    origin: "*", 
+    origin: "*",
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
-/**
- * Routes
- */
+// Compatibility API used by the current Open Hiligaynon UI.
 app.use("/api/sentences", sentenceRoutes);
 
-/**
- * Health check (important for Render)
- */
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+// Linguistic engine API for dictionary, analysis, and training-data workflows.
+app.use("/api/engine", engineRoutes);
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "open-hiligaynon-api",
+    engine: "linguistic-data-v2",
+  });
 });
 
 export default app;
