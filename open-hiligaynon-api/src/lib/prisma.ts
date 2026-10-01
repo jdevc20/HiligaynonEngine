@@ -1,7 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { execFile } from "child_process";
+import { readFile } from "fs/promises";
+import { promisify } from "util";
+import { fileURLToPath } from "url";
 import pg from "pg";
 
+const execFileAsync = promisify(execFile);
+const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
@@ -18,7 +24,15 @@ export const prisma = new PrismaClient({
   adapter,
 });
 
-export async function ensureDatabaseSchema() {
+const LINGUISTIC_MIGRATION =
+  "20261001070000_refactor_linguistic_engine";
+
+const REPAIRED_MIGRATIONS = [
+  "20261001063000_repair_production_schema",
+  LINGUISTIC_MIGRATION,
+] as const;
+
+async function ensureLegacySchema() {
   await pool.query(`
     ALTER TABLE "Sentence"
       ADD COLUMN IF NOT EXISTS "sentiment" INTEGER NOT NULL DEFAULT 1,
@@ -82,4 +96,112 @@ export async function ensureDatabaseSchema() {
       END IF;
     END $$;
   `);
+}
+
+async function forceLinguisticSchema() {
+  const migrationUrl = new URL(
+    `../../prisma/migrations/${LINGUISTIC_MIGRATION}/migration.sql`,
+    import.meta.url
+  );
+
+  const migrationSql = await readFile(migrationUrl, "utf8");
+
+  console.log(
+    `🛠️ Force-applying idempotent schema repair: ${LINGUISTIC_MIGRATION}`
+  );
+
+  await pool.query(migrationSql);
+}
+
+async function runPrismaCli(args: string[]) {
+  const executable = process.platform === "win32" ? "npx.cmd" : "npx";
+
+  return execFileAsync(executable, ["prisma", ...args], {
+    cwd: projectRoot,
+    env: process.env,
+  });
+}
+
+async function reconcileMigrationHistory() {
+  for (const migration of REPAIRED_MIGRATIONS) {
+    try {
+      const { stdout, stderr } = await runPrismaCli([
+        "migrate",
+        "resolve",
+        "--applied",
+        migration,
+      ]);
+
+      if (stdout.trim()) console.log(stdout.trim());
+      if (stderr.trim()) console.warn(stderr.trim());
+    } catch (error: any) {
+      const output = [
+        error?.stdout,
+        error?.stderr,
+        error?.message,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      // "already applied" is expected after the first successful repair.
+      if (!/already applied|already recorded/i.test(output)) {
+        console.warn(
+          `⚠️ Could not mark migration ${migration} as applied. Continuing because the schema repair itself succeeded.`
+        );
+        if (output) console.warn(output);
+      }
+    }
+  }
+
+  try {
+    const { stdout, stderr } = await runPrismaCli(["migrate", "deploy"]);
+    if (stdout.trim()) console.log(stdout.trim());
+    if (stderr.trim()) console.warn(stderr.trim());
+  } catch (error: any) {
+    const output = [
+      error?.stdout,
+      error?.stderr,
+      error?.message,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    throw new Error(
+      `Prisma migration reconciliation failed after schema repair.\n${output}`
+    );
+  }
+}
+
+/**
+ * Production-safe forced migration:
+ * 1. repairs the legacy schema needed for backfill,
+ * 2. force-runs the idempotent linguistic migration SQL,
+ * 3. reconciles Prisma migration history,
+ * 4. deploys any remaining/future migrations.
+ *
+ * The HTTP server is not started unless all required schema work succeeds.
+ */
+export async function ensureDatabaseSchema() {
+  await ensureLegacySchema();
+  await forceLinguisticSchema();
+  await reconcileMigrationHistory();
+
+  const verification = await pool.query<{
+    translation: string | null;
+    text_unit: string | null;
+    language: string | null;
+  }>(`
+    SELECT
+      to_regclass('"Translation"')::text AS translation,
+      to_regclass('"TextUnit"')::text AS text_unit,
+      to_regclass('"Language"')::text AS language;
+  `);
+
+  const row = verification.rows[0];
+
+  if (!row?.translation || !row?.text_unit || !row?.language) {
+    throw new Error(
+      "Forced migration completed without all required linguistic tables."
+    );
+  }
 }
