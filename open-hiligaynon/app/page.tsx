@@ -1,175 +1,142 @@
 import Link from "next/link";
+import { AppNav } from "@/components/AppNav";
+
+const capabilities = [
+  {
+    title: "Translation corpus",
+    description:
+      "Review English ↔ Hiligaynon pairs with verification, confidence, voting, and semantic metadata.",
+    href: "/sentences",
+    action: "Browse corpus",
+  },
+  {
+    title: "Dictionary layer",
+    description:
+      "Search reusable Hiligaynon lexemes, definitions, glosses, parts of speech, and linked meanings.",
+    href: "/dictionary",
+    action: "Open dictionary",
+  },
+  {
+    title: "Grammar analysis",
+    description:
+      "Inspect tokenization, lemmas, parts of speech, contextual notes, and grammar annotations per text unit.",
+    href: "/sentences",
+    action: "Inspect records",
+  },
+  {
+    title: "Training-ready data",
+    description:
+      "The backend separates corpus records, provenance, annotations, and dataset splits for model-training workflows.",
+    href: "/sentences/create",
+    action: "Contribute data",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans transition-colors duration-200">
-      
-      {/* Announcement Banner */}
-      <div className="w-full bg-blue-600 text-white text-sm font-medium py-2 px-4 text-center">
-        🎉 Welcome to Open Hiligaynon! Join us in building the largest open dataset for the Hiligaynon language.
-      </div>
+    <div className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-100">
+      <AppNav />
 
-      <main className="flex-1 flex flex-col items-center px-6 py-20 w-full max-w-5xl mx-auto">
-        
-        {/* Hero Section */}
-        <div className="text-center space-y-6 mb-12 max-w-3xl">
-          <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Open Hiligaynon
-          </h1>
-          <p className="text-lg sm:text-xl text-zinc-600 dark:text-zinc-400 leading-relaxed">
-            A crowdsourced, open-source engine dedicated to translating, preserving, and sharing the Hiligaynon language with the world. Built by the community, for everyone.
-          </p>
-        </div>
+      <main>
+        <section className="border-b border-zinc-200 dark:border-zinc-800">
+          <div className="mx-auto grid w-full max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:py-24">
+            <div className="max-w-3xl">
+              <div className="mb-5 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300">
+                Hiligaynon linguistic data engine
+              </div>
+              <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
+                Build better Hiligaynon language data.
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+                Open Hiligaynon organizes translations, dictionary entries, token
+                annotations, grammar metadata, provenance, and training datasets in
+                one structured engine.
+              </p>
 
-        {/* Primary CTA */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mb-20">
-          
-          <Link
-            href="/sentences"
-            className="flex h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-8 text-white font-medium text-lg transition-all hover:bg-blue-700 hover:shadow-md hover:-translate-y-0.5"
-          >
-            🔍 Browse Database
-          </Link>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/sentences"
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-700"
+                >
+                  Explore translation corpus
+                </Link>
+                <Link
+                  href="/dictionary"
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  Search dictionary
+                </Link>
+              </div>
+            </div>
 
-          <Link
-            href="/sentences/create"
-            className="flex h-14 items-center justify-center gap-2 rounded-full border-2 border-zinc-200 bg-white px-8 text-zinc-900 font-medium text-lg transition-all hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            ✍️ Contribute a Translation
-          </Link>
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Example record
+                  </p>
+                  <p className="mt-1 font-semibold">English → Hiligaynon</p>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  Structured
+                </span>
+              </div>
 
-        </div>
+              <div className="space-y-5 py-5">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">English</p>
+                  <p className="mt-1 text-lg font-semibold">Where are you going?</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Hiligaynon</p>
+                  <p className="mt-1 text-xl font-bold text-blue-700 dark:text-blue-400">
+                    Diin ka makadto?
+                  </p>
+                </div>
+              </div>
 
-        {/* Community Pillars */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full border-t border-zinc-200 dark:border-zinc-800 pt-16">
-          
-          <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-            <div className="text-2xl mb-3">🌍</div>
-            <h3 className="text-xl font-bold">Crowdsourced</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-              Anyone can contribute translations and improve accuracy through community voting.
-            </p>
+              <div className="grid grid-cols-2 gap-3 border-t border-zinc-100 pt-5 text-sm dark:border-zinc-800">
+                <div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-950">
+                  <p className="text-xs text-zinc-500">Intent</p>
+                  <p className="mt-1 font-medium">location_question</p>
+                </div>
+                <div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-950">
+                  <p className="text-xs text-zinc-500">Analysis</p>
+                  <p className="mt-1 font-medium">Tokens + grammar</p>
+                </div>
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-            <div className="text-2xl mb-3">💻</div>
-            <h3 className="text-xl font-bold">Free API</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-              Developers can integrate Hiligaynon translations into apps using our open REST API.
+        <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6">
+          <div className="mb-8 max-w-2xl">
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+              One corpus, several workflows
             </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-            <div className="text-2xl mb-3">📖</div>
-            <h3 className="text-xl font-bold">Open Source</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-              Transparent, community-driven development on GitHub.
-            </p>
-          </div>
-
-        </div>
-
-        {/* NLP Ecosystem Section */}
-        <div className="w-full border-t border-zinc-200 dark:border-zinc-800 pt-16 mt-12">
-          
-          <div className="text-center mb-10 max-w-2xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-extrabold">
-              Open Hiligaynon NLP Ecosystem
+            <h2 className="mt-2 text-3xl font-black tracking-tight">
+              Designed for language work, not just sentence storage
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mt-3">
-              Expanding into language intelligence, search, speech, and structured knowledge systems.
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-            {/* Dictionary */}
-            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-              <div className="text-2xl mb-3">📘</div>
-              <h3 className="font-bold text-lg">Dictionary API</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                Word meanings, examples, synonyms, and contextual usage in structured format.
-              </p>
-              <Link href="/dictionary" className="text-blue-600 text-sm mt-3 inline-block">
-                Explore →
+          <div className="grid gap-4 md:grid-cols-2">
+            {capabilities.map((item) => (
+              <Link
+                key={item.title}
+                href={item.href}
+                className="group rounded-2xl border border-zinc-200 bg-white p-6 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-800"
+              >
+                <h3 className="text-lg font-bold">{item.title}</h3>
+                <p className="mt-2 leading-6 text-zinc-600 dark:text-zinc-400">
+                  {item.description}
+                </p>
+                <p className="mt-5 text-sm font-semibold text-blue-600 dark:text-blue-400">
+                  {item.action} <span aria-hidden="true">→</span>
+                </p>
               </Link>
-            </div>
-
-            {/* NLP Engine */}
-            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-              <div className="text-2xl mb-3">🧠</div>
-              <h3 className="font-bold text-lg">NLP Engine</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                Tokenization, normalization, sentence similarity, and linguistic processing.
-              </p>
-            </div>
-
-            {/* Semantic Search */}
-            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-              <div className="text-2xl mb-3">🔎</div>
-              <h3 className="font-bold text-lg">Semantic Search</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                Search by meaning instead of keywords using embeddings and AI models.
-              </p>
-            </div>
-
-            {/* TTS */}
-            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-              <div className="text-2xl mb-3">🗣️</div>
-              <h3 className="font-bold text-lg">Text-to-Speech</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                Learn pronunciation with natural Hiligaynon speech synthesis.
-              </p>
-            </div>
-
-            {/* Grammar Tool */}
-            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-              <div className="text-2xl mb-3">✍️</div>
-              <h3 className="font-bold text-lg">Grammar Checker</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                Detect and correct grammatical errors in Hiligaynon sentences.
-              </p>
-            </div>
-
-            {/* Resource Hub */}
-            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900 border shadow-sm">
-              <div className="text-2xl mb-3">📤</div>
-              <h3 className="font-bold text-lg">Resource Hub</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                Submit books, PDFs, recordings, and references to improve datasets.
-              </p>
-              <Link href="/resources/submit" className="text-blue-600 text-sm mt-3 inline-block">
-                Submit →
-              </Link>
-            </div>
-
+            ))}
           </div>
-        </div>
-
-        {/* Stats */}
-        <div className="mt-20 flex flex-wrap justify-center gap-8 text-center w-full">
-          
-          <div>
-            <div className="text-4xl font-extrabold">1,200+</div>
-            <div className="text-sm text-zinc-500 uppercase mt-1">Sentences</div>
-          </div>
-
-          <div className="hidden sm:block w-px bg-zinc-200 dark:bg-zinc-800"></div>
-
-          <div>
-            <div className="text-4xl font-extrabold">150+</div>
-            <div className="text-sm text-zinc-500 uppercase mt-1">Contributors</div>
-          </div>
-
-          <div className="hidden sm:block w-px bg-zinc-200 dark:bg-zinc-800"></div>
-
-          <div>
-            <div className="text-4xl font-extrabold">100%</div>
-            <div className="text-sm text-zinc-500 uppercase mt-1">Open Source</div>
-          </div>
-
-        </div>
-
+        </section>
       </main>
     </div>
   );
