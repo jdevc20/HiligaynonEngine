@@ -61,6 +61,13 @@ export interface Sentence {
   confidence: number | null;
   notes: string | null;
 
+  contributorIdentityId: string | null;
+  contributorType: "guest" | "registered";
+  approvedByIdentityId: string | null;
+  approvedAt: string | null;
+  verifiedByIdentityId: string | null;
+  verifiedAt: string | null;
+
   sourceLanguage: string;
   targetLanguage: string;
   sourceTextId: string;
