@@ -189,7 +189,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Language_code_key" ON "Language"("code");
 CREATE UNIQUE INDEX IF NOT EXISTS "TextUnit_languageId_normalizedText_unitType_key" ON "TextUnit"("languageId", "normalizedText", "unitType");
 CREATE INDEX IF NOT EXISTS "TextUnit_languageId_normalizedText_idx" ON "TextUnit"("languageId", "normalizedText");
 CREATE INDEX IF NOT EXISTS "TextUnit_unitType_idx" ON "TextUnit"("unitType");
-CREATE UNIQUE INDEX IF NOT EXISTS "Translation_sourceTextId_targetTextId_key" ON "Translation"("sourceTextId", "targetTextId");
+CREATE INDEX IF NOT EXISTS "Translation_sourceTextId_targetTextId_idx" ON "Translation"("sourceTextId", "targetTextId");
 CREATE INDEX IF NOT EXISTS "Translation_status_idx" ON "Translation"("status");
 CREATE INDEX IF NOT EXISTS "Translation_createdAt_idx" ON "Translation"("createdAt" DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS "LinguisticAnnotation_textUnitId_key" ON "LinguisticAnnotation"("textUnitId");
