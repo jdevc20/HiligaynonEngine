@@ -52,7 +52,7 @@ export const getSentences = async (req: Request, res: Response) => {
       });
     }
 
-    const validationError = validateSemanticInput(sentiment, status, parsedConfidence);
+    const validationError = validateSemanticInput(sentiment, status);
     if (validationError) {
       return res.status(400).json({
         error: "Validation failed",
@@ -136,7 +136,7 @@ export const createSentence = async (req: Request, res: Response) => {
       });
     }
 
-    const validationError = validateSemanticInput(sentiment, status);
+    const validationError = validateSemanticInput(sentiment, status, parsedConfidence);
     if (validationError) {
       return res.status(400).json({
         error: "Validation failed",
