@@ -3,6 +3,7 @@ import Link from "next/link";
 const links = [
   { href: "/sentences", label: "Corpus" },
   { href: "/dictionary", label: "Dictionary" },
+  { href: "/datasets", label: "Datasets" },
   { href: "/sentences/create", label: "Contribute" },
 ];
 
