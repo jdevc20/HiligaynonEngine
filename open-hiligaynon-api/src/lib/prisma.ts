@@ -3,9 +3,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { execFile } from "child_process";
 import { readFile } from "fs/promises";
 import { promisify } from "util";
+import { fileURLToPath } from "url";
 import pg from "pg";
 
 const execFileAsync = promisify(execFile);
+const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
@@ -115,7 +117,7 @@ async function runPrismaCli(args: string[]) {
   const executable = process.platform === "win32" ? "npx.cmd" : "npx";
 
   return execFileAsync(executable, ["prisma", ...args], {
-    cwd: process.cwd(),
+    cwd: projectRoot,
     env: process.env,
   });
 }
