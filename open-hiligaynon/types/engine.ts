@@ -48,3 +48,46 @@ export interface DictionarySearchResponse {
   count: number;
   items: DictionaryLexeme[];
 }
+
+
+export interface DatasetExportItem {
+  id: string;
+  split: string;
+  weight: number;
+  labels: Record<string, unknown> | null;
+  translationId: string;
+  source: {
+    language: string;
+    text: string;
+    annotation: unknown;
+  };
+  target: {
+    language: string;
+    text: string;
+    annotation: unknown;
+    tokens: unknown[];
+    grammar: unknown[];
+  };
+  translationType: string;
+  confidence: number | null;
+  status: string;
+  provenance: Array<{
+    id: string;
+    title: string;
+    sourceType: string;
+    license: string | null;
+  }>;
+}
+
+export interface DatasetExportResponse {
+  dataset: {
+    id: string;
+    name: string;
+    version: string;
+    description: string | null;
+    license: string | null;
+  };
+  split: string;
+  count: number;
+  items: DatasetExportItem[];
+}
