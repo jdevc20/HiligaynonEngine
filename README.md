@@ -1,178 +1,277 @@
 # Open Hiligaynon
 
-A crowdsourced, open-source platform for translating, preserving, and sharing the Hiligaynon language. Built by the community, for everyone.
+Open Hiligaynon is an open-source Hiligaynon language-data platform for collecting translations and building reusable linguistic datasets. The project is designed for four related workloads:
+
+- English ↔ Hiligaynon translation data
+- grammar and token-level linguistic analysis
+- dictionary / lexeme lookup
+- machine-learning dataset preparation and export
+
+The web application still presents a simple sentence-pair workflow, while the backend stores the corpus in a normalized language-data model.
 
 ---
 
-## 🚀 Overview
-
-**Open Hiligaynon** is a full-stack web platform that lets anyone contribute and browse English ↔ Hiligaynon sentence pairs. Each sentence is enriched with semantic annotations — sentiment, sarcasm detection, and intent tagging — to build a high-quality, NLP-ready parallel corpus for this low-resource language.
-
-**Key features:**
-
-- ✍️ **Contribute translations** — Submit English ↔ Hiligaynon sentence pairs
-- 🔍 **Browse the database** — Search, filter, and paginate the full corpus
-- ⚡ **Community voting** — Upvote/downvote translations to surface the best ones
-- 🧠 **Semantic annotations** — Sentiment (positive/neutral/negative), sarcasm flag, and intent label per sentence
-- 🔌 **Open REST API** — Developers can query and integrate the dataset into their own apps
-
----
-
-## 📦 Repository Structure
+## Architecture
 
 ```text
 HiligaynonEngine/
-├── open-hiligaynon/          # Next.js 16 frontend (React 19, TypeScript, Tailwind CSS)
-│   ├── app/                  # App Router pages
-│   │   ├── page.tsx          # Home / landing page
-│   │   └── sentences/        # Browse, create, and view sentence pages
-│   ├── hooks/                # Custom React hooks (e.g., useSentences)
-│   ├── lib/                  # Shared utilities (Axios client, sentence helpers)
-│   ├── services/             # Frontend API service layer (SentenceService)
-│   └── types/                # TypeScript type definitions
-│
-├── open-hiligaynon-api/      # Express 5 REST API backend (Node.js, TypeScript, Prisma)
-│   ├── src/
-│   │   ├── app.ts            # Express app setup (CORS, middleware, routes)
-│   │   ├── index.ts          # Server entry point
-│   │   ├── controllers/      # Request/response handlers
-│   │   ├── routes/           # Route definitions
-│   │   ├── services/         # Business logic (normalization, voting, CRUD)
-│   │   ├── lib/              # Prisma client singleton
-│   │   └── utils/            # Shared utilities
-│   └── prisma/
-│       ├── schema.prisma     # Database schema (Sentence, Token, Idiom, Vote)
-│       └── migrations/       # Prisma migration history
-│
-└── Postman/                  # Postman collection for API testing
+├── open-hiligaynon/          # Next.js frontend
+├── open-hiligaynon-api/      # Express + TypeScript + Prisma API
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   ├── seed.ts
+│   │   └── migrations/
+│   └── src/
+│       ├── controllers/
+│       ├── routes/
+│       ├── services/
+│       ├── lib/
+│       └── utils/
+└── Postman/
 ```
 
----
-
-## ⚙️ Tech Stack
+### Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
-| Backend | Express 5, Node.js, TypeScript |
-| Database | PostgreSQL (via Prisma ORM) |
-| HTTP Client | Axios |
-| Dev Tools | tsx (hot-reload), ESLint, Prisma Studio |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| API | Express, Node.js, TypeScript |
+| ORM | Prisma |
+| Database | PostgreSQL |
+| HTTP client | Axios |
 
 ---
 
-## 🗄️ Database Schema
+## Linguistic Data Model
 
-The core data model is built around four Prisma models:
+The engine no longer treats an English/Hiligaynon pair as one flat database row.
 
-- **`Sentence`** — A parallel sentence pair (`english` + `hiligaynon`) with normalized text for search, cached vote counters, verification status (`pending` / `verified` / `rejected`), and semantic fields (`sentiment`, `intent`, `isSarcastic`).
-- **`Token`** — Individual word tokens linked to a sentence, storing text, normalized form, root word, POS tag, and dialect/slang flags.
-- **`Idiom`** — Multi-word expressions (e.g., "igo na", "bwas damlag") with their unified meaning and type (colloquial, traditional, metaphor).
-- **`Vote`** — Per-IP vote records for each sentence, enforcing one vote per network identity to prevent manipulation.
+### Corpus backbone
+
+```text
+Language
+   │
+   └── TextUnit
+          ├── LinguisticAnnotation
+          ├── TokenAnnotation ──> Lexeme ──> LexemeSense
+          ├── GrammarAnnotation
+          ├── TextSource ──> SourceRecord
+          │
+          ├── source of ──> Translation
+          └── target of ──> Translation
+                            ├── TranslationVote
+                            ├── TranslationSource
+                            └── DatasetItem ──> Dataset
+```
+
+### Core models
+
+**Language** stores a reusable language identity such as `en` or `hil`.
+
+**TextUnit** stores one piece of language data independently from its translation. A unit may be a word, phrase, sentence, or other future unit type. The original text and a normalized search/deduplication form are both retained.
+
+**Translation** links a source `TextUnit` to a target `TextUnit`. Verification status, translation type, confidence, notes, votes, provenance, and dataset membership live on the translation relationship.
+
+**LinguisticAnnotation** stores text-level NLP labels such as sentiment, intent, sarcasm, register, domain, and extensible JSON metadata.
+
+**TokenAnnotation** stores ordered tokens and can link each occurrence to a reusable dictionary `Lexeme`. It also supports POS, morphology, dependency information, slang flags, offsets, and contextual notes.
+
+**Lexeme / LexemeSense / LexemeTranslation** form the dictionary layer. A lexeme represents a reusable lemma, senses store definitions/glosses, and lexeme translations connect dictionary entries across languages.
+
+**GrammarAnnotation** stores grammar structures at the text level or over a token span. The category/label/value plus JSON features allow the grammar model to grow without redesigning the database for every new annotation type.
+
+**SourceRecord** and its link tables preserve provenance independently from the text itself. This is important before using community or reference material in a training corpus.
+
+**Dataset / DatasetItem** explicitly define ML datasets and their `train`, `validation`, `test`, or custom splits.
 
 ---
 
-## 🔌 API Endpoints
+## Compatibility Sentence API
+
+The existing frontend can continue using the sentence endpoints. The API maps normalized `Translation + TextUnit` records back to the familiar response shape.
 
 Base path: `/api/sentences`
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/sentences` | List sentences (supports `page`, `limit`, `search`, `sentiment`, `isSarcastic`, `status`) |
-| `POST` | `/api/sentences` | Create a new sentence pair |
-| `GET` | `/api/sentences/:id` | Get a single sentence with its tokens |
-| `DELETE` | `/api/sentences/:id` | Delete a sentence |
-| `POST` | `/api/sentences/bulk-delete` | Delete multiple sentences by ID array |
-| `POST` | `/api/sentences/migrate` | Run pending Prisma migrations |
-| `GET` | `/health` | Health check |
+| `GET` | `/api/sentences` | List English → Hiligaynon translations |
+| `POST` | `/api/sentences` | Create a translation pair |
+| `GET` | `/api/sentences/:id` | Get one translation with token/grammar metadata |
+| `PATCH` | `/api/sentences/:id` | Update a translation |
+| `DELETE` | `/api/sentences/:id` | Delete a translation |
+| `POST` | `/api/sentences/bulk-delete` | Delete multiple translations |
+| `POST` | `/api/sentences/vote` | Upvote, downvote, switch, or remove a vote |
 
-> Voting is handled via the sentence service using a thread-safe atomic transaction. A `POST` to cast a vote accepts `sentenceId`, `type` (`UP` or `DOWN`), and an optional `userId`. Duplicate votes from the same IP toggle off; switching vote direction is handled atomically.
+Supported list filters include `page`, `limit`, `search`, `sentiment`, `isSarcastic`, and `status`.
+
+The old HTTP migration endpoint was removed. Production migrations run through the deployment process instead of being triggerable over a public API.
 
 ---
 
-## 🏃 Getting Started
+## Linguistic Engine API
 
-### Prerequisites
+Base path: `/api/engine`
 
-- Node.js 22.x
-- PostgreSQL database
-- A `.env` file in `open-hiligaynon-api/` with `DATABASE_URL`
+### Dictionary
 
-### Run the API
+```http
+GET /api/engine/dictionary?q=gid&language=hil
+```
+
+Returns lexemes, senses, and linked cross-language lexeme translations.
+
+### Text analysis
+
+Each sentence response includes `sourceTextId` and `targetTextId`. Use a text-unit ID to inspect the normalized linguistic representation:
+
+```http
+GET /api/engine/text-units/:id/analysis
+```
+
+The response may contain:
+
+- language metadata
+- semantic annotation
+- ordered tokens
+- linked dictionary lexemes and senses
+- POS and morphological features
+- dependency metadata
+- grammar annotations
+- provenance
+- translations that use the text unit
+
+### Training dataset export
+
+```http
+GET /api/engine/datasets/sample-dataset-v1/export
+GET /api/engine/datasets/sample-dataset-v1/export?split=train
+```
+
+The export includes source/target language and text, annotations, target tokens, grammar metadata, translation metadata, dataset labels, weights, and provenance.
+
+---
+
+## Sample Data
+
+A structured development seed is included.
+
+```bash
+cd open-hiligaynon-api
+npm run db:seed
+```
+
+The sample seed creates:
+
+- English and Hiligaynon language records
+- 10 English → Hiligaynon translation pairs
+- text-level sentiment, intent, and domain labels
+- reusable Hiligaynon lexemes and senses
+- token annotations linked to matching lexemes
+- sample grammar annotations
+- a provenance record
+- a sample ML dataset with train / validation / test splits
+
+Example translation:
+
+```json
+{
+  "english": "Where are you going?",
+  "hiligaynon": "Diin ka makadto?",
+  "sentiment": 1,
+  "intent": "location_question",
+  "domain": "daily_life"
+}
+```
+
+The underlying representation separates the two texts and can annotate the Hiligaynon target as:
+
+```json
+{
+  "text": "Diin ka makadto?",
+  "language": "hil",
+  "tokens": [
+    { "text": "Diin", "lemma": "diin", "pos": "interrogative" },
+    { "text": "ka" },
+    { "text": "makadto", "lemma": "makadto", "pos": "verb" }
+  ],
+  "grammar": [
+    {
+      "category": "sentence_type",
+      "label": "interrogative",
+      "value": "location_question"
+    }
+  ]
+}
+```
+
+---
+
+## Database Migration
+
+The linguistic-engine migration is intentionally non-destructive.
+
+It:
+
+1. creates the normalized language-data tables;
+2. seeds the English and Hiligaynon language identities;
+3. deduplicates reusable English/Hiligaynon text units;
+4. preserves existing sentence IDs as translation IDs;
+5. migrates sentiment, intent, sarcasm, tokens, roots, votes, and idioms;
+6. promotes legacy token roots into dictionary lexemes; and
+7. leaves the legacy `Sentence`, `Token`, `Idiom`, and `Vote` tables in place as a rollback safety net.
+
+Once production data has been validated against the new model, a later cleanup migration can remove the legacy tables.
+
+---
+
+## Local Development
+
+### API prerequisites
+
+- Node.js 22+
+- PostgreSQL
+- `DATABASE_URL` in `open-hiligaynon-api/.env`
+
+### API
 
 ```bash
 cd open-hiligaynon-api
 npm install
-npm run db:migrate     # Run database migrations
-npm run dev            # Start API with hot-reload (tsx watch)
+npm run db:migrate
+npm run db:seed
+npm run dev
 ```
 
-### Run the Frontend
+### Frontend
 
 ```bash
 cd open-hiligaynon
 npm install
-npm run dev            # Start Next.js dev server
+npm run dev
 ```
+
+### Production database deployment
+
+```bash
+npm run db:deploy
+```
+
+The API start command also runs `prisma migrate deploy` before starting the compiled server.
 
 ---
 
-## 📊 Sentence Dataset Format
+## Training-data guidance
 
-### Sentence Pair (API request body)
-
-```json
-{
-  "english": "I am hungry",
-  "hiligaynon": "Gutom ako",
-  "sentiment": 0,
-  "intent": "express_hunger",
-  "isSarcastic": false
-}
-```
-
-### Sentence Pair (API response)
-
-```json
-{
-  "id": "uuid",
-  "english": "I am hungry",
-  "hiligaynon": "Gutom ako",
-  "normalizedEnglish": "i am hungry",
-  "normalizedHiligaynon": "gutom ako",
-  "status": "pending",
-  "upVotes": 3,
-  "downVotes": 0,
-  "sentiment": 0,
-  "intent": "express_hunger",
-  "isSarcastic": false,
-  "createdAt": "2025-01-01T00:00:00.000Z",
-  "updatedAt": "2025-01-01T00:00:00.000Z"
-}
-```
+A row being present in the corpus does not automatically mean it should be used for training. Prefer dataset items whose translation has been reviewed and whose source/provenance and usage rights are known. Keep train/validation/test membership explicit through `DatasetItem` instead of deriving splits ad hoc during export.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions from everyone — whether you're a native Hiligaynon speaker, a developer, or a language enthusiast.
-
-**Ways to contribute:**
-
-- Add sentence pairs via the web app or API
-- Improve translation quality through community voting
-- Report issues or suggest features on GitHub
-- Submit books, PDFs, and references to improve the dataset
-
-**Development workflow:**
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request for review
+Useful contributions include translation review, dictionary entries, grammar annotations, source/provenance cleanup, dialect/register notes, and improvements to the API or UI.
 
 ---
 
-## 📜 License
+## License
 
-Licensed under the [MIT License](LICENSE).
+Project source code is licensed under the [MIT License](LICENSE). Dataset/source licensing should be tracked separately in `SourceRecord` and `Dataset` because contributed linguistic material may have different usage rights.
