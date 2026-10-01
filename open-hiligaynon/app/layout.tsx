@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Open Hiligaynon",
-  description: "Open Hiligaynon is a free and open-source Hiligaynon language model.",
+  title: "Open Hiligaynon Engine",
+  description: "Open-source Hiligaynon translation corpus, dictionary, linguistic analysis, and dataset engine.",
 };
 
 export default function RootLayout({
