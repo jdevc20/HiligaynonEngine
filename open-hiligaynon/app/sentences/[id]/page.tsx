@@ -22,6 +22,9 @@ export default function TranslationDetailPage() {
   const canVerify = isHilitechAdmin(session?.user.role);
 
   const [sentence, setSentence] = useState<Sentence | null>(null);
+  const canEdit = Boolean(
+    session && sentence && (sentence.status === "pending" || canVerify)
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [voting, setVoting] = useState(false);
@@ -75,8 +78,12 @@ export default function TranslationDetailPage() {
   const save = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!session) {
-      setError("Sign in with Hilitech Authentication to edit a contribution.");
+    if (!canEdit) {
+      setError(
+        session
+          ? "This contribution is locked after approval. Only a Hilitech admin can edit it."
+          : "Sign in with Hilitech Authentication to edit a contribution."
+      );
       return;
     }
 
@@ -474,6 +481,18 @@ export default function TranslationDetailPage() {
               submit new contributions, but existing records are protected.
             </div>
           )}
+          {session && !canEdit && (
+            <div className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+              This record is {sentence.status}. Registered users can edit only
+              pending contributions. An admin must make later corrections.
+            </div>
+          )}
+          {session && canVerify && sentence.status !== "pending" && (
+            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Admin edits to an approved or verified record reset it to Pending so
+              the changed content must pass review again.
+            </div>
+          )}
 
           <form onSubmit={save} className="mt-5 space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
@@ -589,10 +608,10 @@ export default function TranslationDetailPage() {
               </div>
               <button
                 type="submit"
-                disabled={saving || !session}
+                disabled={saving || !canEdit}
                 className="h-11 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
               >
-                {!session ? "Sign in to edit" : saving ? "Saving…" : "Save changes"}
+                {!canEdit ? "Editing locked" : saving ? "Saving…" : "Save changes"}
               </button>
             </div>
           </form>
