@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 const normalizeText = (text: string) =>
   text
     .normalize("NFC")
-    .toLocaleLowerCase()
+    .toLowerCase()
     .trim()
     .replace(/[.,/#!$%^&*;:{}=_`~()\[\]?"“”]/g, "")
     .replace(/\s+/g, " ");
