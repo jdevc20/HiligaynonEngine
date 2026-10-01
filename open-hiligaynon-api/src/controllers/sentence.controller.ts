@@ -181,6 +181,7 @@ export const createSentence = async (req: Request, res: Response) => {
 
 export const updateSentence = async (req: Request, res: Response) => {
   try {
+    const authRequest = req as HilitechRequest;
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!id) {
       return res.status(400).json({
@@ -193,6 +194,24 @@ export const updateSentence = async (req: Request, res: Response) => {
       return res.status(400).json({
         error: "Use the moderation endpoint",
         details: "Translation status can only be changed through PATCH /api/sentences/:id/status.",
+      });
+    }
+
+    const existing = await sentenceService.getSentenceById(id);
+    if (!existing) {
+      return res.status(404).json({
+        error: "Resource not found",
+        details: `No translation found with ID: ${id}`,
+      });
+    }
+
+    const actorRole = authRequest.hilitechUser?.role;
+    const isAdmin = actorRole === "ADMIN" || actorRole === "SUPER_ADMIN";
+
+    if (!isAdmin && existing.status !== "pending") {
+      return res.status(403).json({
+        error: "Contribution is locked for review",
+        details: "Registered users may edit only pending contributions. Approved or verified records require an admin edit and must be reviewed again.",
       });
     }
 
@@ -238,7 +257,7 @@ export const updateSentence = async (req: Request, res: Response) => {
       ...(req.body.notes !== undefined ? { notes: req.body.notes } : {}),
       ...(req.body.register !== undefined ? { register: req.body.register } : {}),
       ...(req.body.domain !== undefined ? { domain: req.body.domain } : {}),
-    });
+    }, isAdmin && existing.status !== "pending");
 
     if (!data) {
       return res.status(404).json({
