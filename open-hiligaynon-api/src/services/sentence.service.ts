@@ -403,6 +403,13 @@ export interface CastVoteInput {
 export const castVote = async (data: CastVoteInput) => {
   const { sentenceId, ipAddress, type, userId } = data;
 
+  const translationExists = await prisma.translation.findUnique({
+    where: { id: sentenceId },
+    select: { id: true },
+  });
+
+  if (!translationExists) return null;
+
   await prisma.$transaction(async (tx) => {
     const existingVote = await tx.translationVote.findUnique({
       where: {
