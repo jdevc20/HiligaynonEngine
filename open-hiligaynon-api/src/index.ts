@@ -16,9 +16,9 @@ let server: any;
 async function startServer() {
   try {
     console.log("🚀 Starting server...");
-    console.log("🗄️ Ensuring database schema...");
+    console.log("🗄️ Force-repairing and reconciling database schema...");
     await ensureDatabaseSchema();
-    console.log("✅ Database schema ready.");
+    console.log("✅ Database migration and schema verification complete.");
 
     server = app.listen(PORT, HOST, () => {
       console.log(`✅ Server running at http://${HOST}:${PORT}`);
