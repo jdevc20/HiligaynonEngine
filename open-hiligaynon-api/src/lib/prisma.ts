@@ -2,7 +2,11 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
-const connectionString = "postgresql://hilitech_auth_db_user:3f3HxXJ3Xc3n4WuVOoQYbOgIqUpwVbDd@dpg-d84645jtqb8s73f2896g-a/hilitech_auth_db";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL is not configured");
+}
 
 const pool = new pg.Pool({
   connectionString,
