@@ -5,10 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { SentenceService } from "@/services/sentenceService";
-import type {
-  Sentence,
-  TranslationStatus,
-} from "@/types/sentence";
+import { useAuth } from "@/contexts/AuthContext";
+import { isHilitechAdmin } from "@/lib/auth";
+import type { Sentence } from "@/types/sentence";
 
 const sentimentName = (value: number) => {
   if (value === 2) return "Positive";
@@ -19,6 +18,8 @@ const sentimentName = (value: number) => {
 export default function TranslationDetailPage() {
   const params = useParams();
   const id = String(params?.id ?? "");
+  const { session } = useAuth();
+  const canVerify = isHilitechAdmin(session?.user.role);
 
   const [sentence, setSentence] = useState<Sentence | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,6 @@ export default function TranslationDetailPage() {
 
   const [english, setEnglish] = useState("");
   const [hiligaynon, setHiligaynon] = useState("");
-  const [status, setStatus] = useState<TranslationStatus>("pending");
   const [sentiment, setSentiment] = useState(1);
   const [intent, setIntent] = useState("");
   const [domain, setDomain] = useState("");
@@ -41,7 +41,6 @@ export default function TranslationDetailPage() {
   const hydrateForm = (data: Sentence) => {
     setEnglish(data.english);
     setHiligaynon(data.hiligaynon);
-    setStatus(data.status);
     setSentiment(data.sentiment);
     setIntent(data.intent ?? "");
     setDomain(data.domain ?? "");
@@ -76,6 +75,11 @@ export default function TranslationDetailPage() {
   const save = async (event: FormEvent) => {
     event.preventDefault();
 
+    if (!session) {
+      setError("Sign in with Hilitech Authentication to edit a contribution.");
+      return;
+    }
+
     if (!sentence || !english.trim() || !hiligaynon.trim()) {
       setError("English and Hiligaynon text are required.");
       return;
@@ -101,7 +105,6 @@ export default function TranslationDetailPage() {
       const response = await SentenceService.update(sentence.id, {
         english: english.trim(),
         hiligaynon: hiligaynon.trim(),
-        status,
         sentiment,
         intent: intent.trim() || null,
         domain: domain.trim() || null,
@@ -142,6 +145,29 @@ export default function TranslationDetailPage() {
       console.error("Vote failed:", err);
     } finally {
       setVoting(false);
+    }
+  };
+
+  const moderate = async (status: "approved" | "verified") => {
+    if (!sentence || !session) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      const response = await SentenceService.moderate(sentence.id, status);
+
+      if (response?.data) {
+        setSentence(response.data);
+        hydrateForm(response.data);
+      }
+    } catch (err: any) {
+      console.error("Moderation failed:", err);
+      setError(
+        err?.response?.data?.details ||
+          "Could not update the contribution moderation status."
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -216,6 +242,26 @@ export default function TranslationDetailPage() {
             >
               ▼ {sentence.downVotes}
             </button>
+            {session && sentence.status === "pending" && (
+              <button
+                type="button"
+                onClick={() => void moderate("approved")}
+                disabled={saving}
+                className="h-10 rounded-lg bg-amber-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Approve
+              </button>
+            )}
+            {canVerify && sentence.status === "approved" && (
+              <button
+                type="button"
+                onClick={() => void moderate("verified")}
+                disabled={saving}
+                className="h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Verify
+              </button>
+            )}
           </div>
         </div>
 
@@ -258,6 +304,7 @@ export default function TranslationDetailPage() {
         <section className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[
             ["Status", sentence.status],
+            ["Contributor", sentence.contributorType === "registered" ? "Hilitech user" : "Guest"],
             ["Type", sentence.translationType || "natural"],
             ["Sentiment", sentimentName(sentence.sentiment)],
             [
@@ -421,6 +468,13 @@ export default function TranslationDetailPage() {
             </h2>
           </div>
 
+          {!session && (
+            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Sign in with Hilitech Authentication to edit this record. Guests can
+              submit new contributions, but existing records are protected.
+            </div>
+          )}
+
           <form onSubmit={save} className="mt-5 space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
               <label className="text-sm font-semibold">
@@ -444,22 +498,6 @@ export default function TranslationDetailPage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-sm font-semibold">
-                Status
-                <select
-                  value={status}
-                  onChange={(event) =>
-                    setStatus(event.target.value as TranslationStatus)
-                  }
-                  className={inputClass}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="verified">Verified</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </label>
-
               <label className="text-sm font-semibold">
                 Sentiment
                 <select
@@ -551,10 +589,10 @@ export default function TranslationDetailPage() {
               </div>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || !session}
                 className="h-11 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
               >
-                {saving ? "Saving…" : "Save changes"}
+                {!session ? "Sign in to edit" : saving ? "Saving…" : "Save changes"}
               </button>
             </div>
           </form>
