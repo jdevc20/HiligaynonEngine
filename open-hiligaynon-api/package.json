@@ -1,16 +1,17 @@
 {
   "name": "open-hiligaynon-api",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-"scripts": {
-  "dev": "tsx watch src/index.ts",
-  "build": "prisma generate && tsc",
-  "start": "prisma migrate deploy && node dist/index.js",
-  "postinstall": "prisma generate",
-  "db:migrate": "prisma migrate dev",
-  "db:deploy": "prisma migrate deploy",
-  "db:studio": "prisma studio"
-},
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "prisma generate && tsc",
+    "start": "prisma migrate deploy && node dist/index.js",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^6.19.3",
