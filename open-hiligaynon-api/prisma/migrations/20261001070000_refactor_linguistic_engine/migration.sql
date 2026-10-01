@@ -246,6 +246,49 @@ SELECT
 FROM "Sentence"
 ON CONFLICT DO NOTHING;
 
+-- Preserve legacy idioms as phrase-level English -> Hiligaynon translations.
+INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
+SELECT DISTINCT ON (lower(trim("meaning")))
+  'idiom-en-' || md5(lower(trim("meaning"))),
+  'lang-en',
+  "meaning",
+  lower(trim("meaning")),
+  'phrase',
+  "createdAt",
+  "createdAt"
+FROM "Idiom"
+ORDER BY lower(trim("meaning")), "createdAt"
+ON CONFLICT DO NOTHING;
+
+INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
+SELECT DISTINCT ON (lower(trim("phrase")))
+  'idiom-hil-' || md5(lower(trim("phrase"))),
+  'lang-hil',
+  "phrase",
+  lower(trim("phrase")),
+  'phrase',
+  "createdAt",
+  "createdAt"
+FROM "Idiom"
+ORDER BY lower(trim("phrase")), "createdAt"
+ON CONFLICT DO NOTHING;
+
+INSERT INTO "Translation" (
+  "id", "sourceTextId", "targetTextId", "status", "translationType",
+  "notes", "createdAt", "updatedAt"
+)
+SELECT
+  'idiom-' || "id",
+  'idiom-en-' || md5(lower(trim("meaning"))),
+  'idiom-hil-' || md5(lower(trim("phrase"))),
+  'pending',
+  'idiom',
+  'Migrated legacy idiom type: ' || COALESCE("type", 'colloquial'),
+  "createdAt",
+  "createdAt"
+FROM "Idiom"
+ON CONFLICT DO NOTHING;
+
 INSERT INTO "LinguisticAnnotation" (
   "id", "textUnitId", "sentiment", "intent", "isSarcastic", "createdAt", "updatedAt"
 )
@@ -256,15 +299,42 @@ SELECT
 FROM "Sentence"
 ON CONFLICT ("textUnitId") DO NOTHING;
 
+-- Promote legacy token roots into reusable Hiligaynon dictionary lexemes.
+INSERT INTO "Lexeme" (
+  "id", "languageId", "lemma", "normalizedLemma", "partOfSpeech", "createdAt", "updatedAt"
+)
+SELECT DISTINCT ON (lower(trim("root")))
+  'lexeme-hil-' || md5(lower(trim("root"))),
+  'lang-hil',
+  trim("root"),
+  lower(trim("root")),
+  "pos",
+  "createdAt",
+  "createdAt"
+FROM "Token"
+WHERE "root" IS NOT NULL AND trim("root") <> ''
+ORDER BY lower(trim("root")), "createdAt"
+ON CONFLICT DO NOTHING;
+
 INSERT INTO "TokenAnnotation" (
-  "id", "textUnitId", "tokenOrder", "text", "normalized",
+  "id", "textUnitId", "tokenOrder", "text", "normalized", "lexemeId",
   "partOfSpeech", "isSlang", "contextNote", "createdAt"
 )
 SELECT
   t."id",
   'tu-hil-' || md5(s."normalizedHiligaynon"),
-  t."tokenOrder", t."text", COALESCE(t."normalized", lower(t."text")),
-  t."pos", t."isSlang", t."contextNote", t."createdAt"
+  t."tokenOrder",
+  t."text",
+  COALESCE(t."normalized", lower(t."text")),
+  CASE
+    WHEN t."root" IS NOT NULL AND trim(t."root") <> ''
+      THEN 'lexeme-hil-' || md5(lower(trim(t."root")))
+    ELSE NULL
+  END,
+  t."pos",
+  t."isSlang",
+  t."contextNote",
+  t."createdAt"
 FROM "Token" t
 JOIN "Sentence" s ON s."id" = t."sentenceId"
 ON CONFLICT DO NOTHING;
