@@ -233,7 +233,7 @@ FROM "Sentence" s
 CROSS JOIN LATERAL (
   SELECT "id" FROM "Language" WHERE "code" = 'en' LIMIT 1
 ) en
-ORDER BY "normalizedEnglish", "createdAt"
+ORDER BY s."normalizedEnglish", s."createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
@@ -249,7 +249,7 @@ FROM "Sentence" s
 CROSS JOIN LATERAL (
   SELECT "id" FROM "Language" WHERE "code" = 'hil' LIMIT 1
 ) hil
-ORDER BY "normalizedHiligaynon", "createdAt"
+ORDER BY s."normalizedHiligaynon", s."createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "Translation" (
@@ -281,29 +281,35 @@ ON CONFLICT DO NOTHING;
 
 -- Preserve legacy idioms as phrase-level English -> Hiligaynon translations.
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
-SELECT DISTINCT ON (lower(trim("meaning")))
-  'idiom-en-' || md5(lower(trim("meaning"))),
-  'lang-en',
-  "meaning",
-  lower(trim("meaning")),
+SELECT DISTINCT ON (lower(trim(i."meaning")))
+  'idiom-en-' || md5(lower(trim(i."meaning"))),
+  en."id",
+  i."meaning",
+  lower(trim(i."meaning")),
   'phrase',
-  "createdAt",
-  "createdAt"
-FROM "Idiom"
-ORDER BY lower(trim("meaning")), "createdAt"
+  i."createdAt",
+  i."createdAt"
+FROM "Idiom" i
+CROSS JOIN LATERAL (
+  SELECT "id" FROM "Language" WHERE "code" = 'en' LIMIT 1
+) en
+ORDER BY lower(trim(i."meaning")), i."createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TextUnit" ("id", "languageId", "text", "normalizedText", "unitType", "createdAt", "updatedAt")
-SELECT DISTINCT ON (lower(trim("phrase")))
-  'idiom-hil-' || md5(lower(trim("phrase"))),
-  'lang-hil',
-  "phrase",
-  lower(trim("phrase")),
+SELECT DISTINCT ON (lower(trim(i."phrase")))
+  'idiom-hil-' || md5(lower(trim(i."phrase"))),
+  hil."id",
+  i."phrase",
+  lower(trim(i."phrase")),
   'phrase',
-  "createdAt",
-  "createdAt"
-FROM "Idiom"
-ORDER BY lower(trim("phrase")), "createdAt"
+  i."createdAt",
+  i."createdAt"
+FROM "Idiom" i
+CROSS JOIN LATERAL (
+  SELECT "id" FROM "Language" WHERE "code" = 'hil' LIMIT 1
+) hil
+ORDER BY lower(trim(i."phrase")), i."createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "Translation" (
@@ -311,15 +317,25 @@ INSERT INTO "Translation" (
   "notes", "createdAt", "updatedAt"
 )
 SELECT
-  'idiom-' || "id",
-  'idiom-en-' || md5(lower(trim("meaning"))),
-  'idiom-hil-' || md5(lower(trim("phrase"))),
+  'idiom-' || i."id",
+  src."id",
+  tgt."id",
   'pending',
   'idiom',
-  'Migrated legacy idiom type: ' || COALESCE("type", 'colloquial'),
-  "createdAt",
-  "createdAt"
-FROM "Idiom"
+  'Migrated legacy idiom type: ' || COALESCE(i."type", 'colloquial'),
+  i."createdAt",
+  i."createdAt"
+FROM "Idiom" i
+JOIN "Language" en ON en."code" = 'en'
+JOIN "Language" hil ON hil."code" = 'hil'
+JOIN "TextUnit" src
+  ON src."languageId" = en."id"
+ AND src."normalizedText" = lower(trim(i."meaning"))
+ AND src."unitType" = 'phrase'
+JOIN "TextUnit" tgt
+  ON tgt."languageId" = hil."id"
+ AND tgt."normalizedText" = lower(trim(i."phrase"))
+ AND tgt."unitType" = 'phrase'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "LinguisticAnnotation" (
@@ -358,7 +374,7 @@ CROSS JOIN LATERAL (
   SELECT "id" FROM "Language" WHERE "code" = 'hil' LIMIT 1
 ) hil
 WHERE "root" IS NOT NULL AND trim("root") <> ''
-ORDER BY lower(trim("root")), "createdAt"
+ORDER BY lower(trim(t."root")), t."createdAt"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "TokenAnnotation" (
