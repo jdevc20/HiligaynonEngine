@@ -252,11 +252,19 @@ npm run dev
 
 ### Production database deployment
 
+Normal deployment:
+
 ```bash
 npm run db:deploy
 ```
 
-The API start command also runs `prisma migrate deploy` before starting the compiled server.
+Forced repair (for schema drift or a migration recorded in the wrong state):
+
+```bash
+npm run db:force-migrate
+```
+
+Production startup now performs the same idempotent linguistic-schema repair before accepting HTTP traffic, reconciles the repaired migration records, and then runs `prisma migrate deploy` for any remaining migrations. This specifically prevents the API from starting while `Translation`, `TextUnit`, or `Language` are missing.
 
 ---
 
