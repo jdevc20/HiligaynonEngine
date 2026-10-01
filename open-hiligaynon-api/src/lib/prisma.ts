@@ -25,10 +25,11 @@ export const prisma = new PrismaClient({
 });
 
 const LINGUISTIC_MIGRATION =
-  "20261001070000_refactor_linguistic_engine";
+  "20261001073000_force_repair_linguistic_schema";
 
 const REPAIRED_MIGRATIONS = [
   "20261001063000_repair_production_schema",
+  "20261001070000_refactor_linguistic_engine",
   LINGUISTIC_MIGRATION,
 ] as const;
 
