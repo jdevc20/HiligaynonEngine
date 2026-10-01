@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   getStoredHilitechSession,
+  HILITECH_SESSION_EVENT,
   refreshHilitechSession,
   signInWithHilitech,
   signOutFromHilitech,
@@ -34,6 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSession(getStoredHilitechSession());
     setLoading(false);
+
+    const handleSessionChange = (event: Event) => {
+      const customEvent = event as CustomEvent<HilitechSession | null>;
+      setSession(customEvent.detail);
+    };
+
+    window.addEventListener(HILITECH_SESSION_EVENT, handleSessionChange);
+    return () =>
+      window.removeEventListener(HILITECH_SESSION_EVENT, handleSessionChange);
   }, []);
 
   const value = useMemo<AuthContextValue>(
