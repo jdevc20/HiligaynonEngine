@@ -217,16 +217,20 @@ model TranslationSource {
 }
 
 model Dataset {
-  id          String        @id @default(uuid())
-  name        String
-  version     String        @default("1.0")
-  description String?
-  license     String?
-  items       DatasetItem[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                    String        @id @default(uuid())
+  name                  String
+  version               String        @default("1.0")
+  description           String?
+  license               String?
+  generationConfig      Json?
+  generatedByIdentityId String?
+  generatedAt           DateTime?
+  items                 DatasetItem[]
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   @@unique([name, version])
+  @@index([generatedByIdentityId])
 }
 
 model DatasetItem {
