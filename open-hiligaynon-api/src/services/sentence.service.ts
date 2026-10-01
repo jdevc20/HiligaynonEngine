@@ -421,11 +421,10 @@ export const castVote = async (data: CastVoteInput) => {
 
         await tx.translation.update({
           where: { id: sentenceId },
-          data: {
-            [type === "UP" ? "upVotes" : "downVotes"]: {
-              decrement: 1,
-            },
-          },
+          data:
+            type === "UP"
+              ? { upVotes: { decrement: 1 } }
+              : { downVotes: { decrement: 1 } },
         });
 
         return;
@@ -438,14 +437,16 @@ export const castVote = async (data: CastVoteInput) => {
 
       await tx.translation.update({
         where: { id: sentenceId },
-        data: {
-          upVotes: {
-            [type === "UP" ? "increment" : "decrement"]: 1,
-          },
-          downVotes: {
-            [type === "DOWN" ? "increment" : "decrement"]: 1,
-          },
-        },
+        data:
+          type === "UP"
+            ? {
+                upVotes: { increment: 1 },
+                downVotes: { decrement: 1 },
+              }
+            : {
+                upVotes: { decrement: 1 },
+                downVotes: { increment: 1 },
+              },
       });
 
       return;
@@ -462,11 +463,10 @@ export const castVote = async (data: CastVoteInput) => {
 
     await tx.translation.update({
       where: { id: sentenceId },
-      data: {
-        [type === "UP" ? "upVotes" : "downVotes"]: {
-          increment: 1,
-        },
-      },
+      data:
+        type === "UP"
+          ? { upVotes: { increment: 1 } }
+          : { downVotes: { increment: 1 } },
     });
   });
 
