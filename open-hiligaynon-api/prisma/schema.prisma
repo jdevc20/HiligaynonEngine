@@ -7,77 +7,245 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Sentence {
-  id                   String   @id @default(uuid())
-  english              String
-  hiligaynon           String
-  normalizedEnglish    String
-  normalizedHiligaynon String
-  status               String   @default("pending") // pending | verified | rejected
-  
-  // 📈 Cached counters for high-performance reading in your UI feed
-  upVotes              Int      @default(0)
-  downVotes            Int      @default(0)
-  
-  // Relations
-  tokens               Token[]
-  votes                Vote[]
+model Language {
+  id         String     @id @default(uuid())
+  code       String     @unique
+  name       String
+  nativeName String?
+  textUnits  TextUnit[]
+  lexemes    Lexeme[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
 
-  // 🧠 Semantic & Sentiment Analytics Layers
-  sentiment            Int      @default(1)       // 0 = Negative, 1 = Neutral, 2 = Positive
-  intent               String?                    // e.g., "express_financial_luck", "complaint_delay"
-  isSarcastic          Boolean  @default(false)   // Flags heavy contextual irony (e.g., "Nanamian gid ko...")
+model TextUnit {
+  id                 String                 @id @default(uuid())
+  languageId         String
+  language           Language               @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  text               String
+  normalizedText     String
+  unitType           String                 @default("sentence")
+  annotation         LinguisticAnnotation?
+  tokens             TokenAnnotation[]
+  grammarAnnotations GrammarAnnotation[]
+  sourceTranslations Translation[]          @relation("SourceText")
+  targetTranslations Translation[]          @relation("TargetText")
+  sources            TextSource[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  @@unique([languageId, normalizedText, unitType])
+  @@index([languageId, normalizedText])
+  @@index([unitType])
+}
 
-  // ⚡ INDEXES: Optimized for filtering by sentiment and pagination lookups
-  @@index([normalizedEnglish])
-  @@index([normalizedHiligaynon])
-  @@index([sentiment])
+model Translation {
+  id              String              @id @default(uuid())
+  sourceTextId    String
+  targetTextId    String
+  sourceText      TextUnit            @relation("SourceText", fields: [sourceTextId], references: [id], onDelete: Restrict)
+  targetText      TextUnit            @relation("TargetText", fields: [targetTextId], references: [id], onDelete: Restrict)
+  status          String              @default("pending")
+  translationType String              @default("natural")
+  confidence      Float?
+  notes           String?
+  upVotes         Int                 @default(0)
+  downVotes       Int                 @default(0)
+  votes           TranslationVote[]
+  datasetItems    DatasetItem[]
+  sources         TranslationSource[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([sourceTextId, targetTextId])
+  @@index([status])
   @@index([createdAt(sort: Desc)])
 }
 
-model Token {
-  id         String   @id @default(uuid())
-  sentenceId String
-  sentence   Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+model LinguisticAnnotation {
+  id          String   @id @default(uuid())
+  textUnitId  String   @unique
+  textUnit    TextUnit @relation(fields: [textUnitId], references: [id], onDelete: Cascade)
+  sentiment   Int      @default(1)
+  intent      String?
+  isSarcastic Boolean  @default(false)
+  register    String?
+  domain      String?
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  tokenOrder Int
-  text       String
-  normalized String?
-  root       String?
-  pos        String?  // noun, verb, particle, etc.
-  
-  // 🏝️ Urban Iloilo Dialect & Context Nuances
-  isSlang     Boolean  @default(false) // Flags localized tokens like "paldo", "chuy", "haw"
-  contextNote String?  // Documents situational semantic shifts (e.g., "Naisahan" meaning "tricked")
-
-  createdAt  DateTime @default(now())
-
-  @@index([sentenceId])
+  @@index([sentiment])
+  @@index([intent])
 }
 
-model Idiom {
-  id        String   @id @default(uuid())
-  phrase    String   @unique // Multi-word expressions like "igo na", "bwas damlag"
-  meaning   String   // The unified semantic translation
-  type      String   @default("colloquial") // colloquial | traditional | metaphor
-  createdAt DateTime @default(now())
+model Lexeme {
+  id                   String              @id @default(uuid())
+  languageId           String
+  language             Language            @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  lemma                String
+  normalizedLemma      String
+  partOfSpeech         String?
+  register             String?
+  notes                String?
+  senses               LexemeSense[]
+  tokenOccurrences     TokenAnnotation[]
+  outgoingTranslations LexemeTranslation[] @relation("LexemeTranslationSource")
+  incomingTranslations LexemeTranslation[] @relation("LexemeTranslationTarget")
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
-  @@index([phrase])
+  @@unique([languageId, normalizedLemma])
+  @@index([languageId, partOfSpeech])
 }
 
-model Vote {
+model LexemeSense {
   id         String   @id @default(uuid())
-  sentenceId String
-  sentence   Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
-  userId     String?  // Left optional for future authentication/user profiles
-  ipAddress  String   // Simple footprint tracker to block anonymous vote manipulation
-  type       String   // "UP" | "DOWN"
+  lexemeId   String
+  lexeme     Lexeme   @relation(fields: [lexemeId], references: [id], onDelete: Cascade)
+  definition String
+  gloss      String?
+  register   String?
+  usageNote  String?
+  metadata   Json?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  // ⚡ CONSTRAINT: Enforces that a unique network profile can only vote once per sentence
-  @@unique([sentenceId, ipAddress])
-  @@index([sentenceId])
+  @@index([lexemeId])
+}
+
+model LexemeTranslation {
+  id             String @id @default(uuid())
+  sourceLexemeId String
+  targetLexemeId String
+  sourceLexeme   Lexeme @relation("LexemeTranslationSource", fields: [sourceLexemeId], references: [id], onDelete: Cascade)
+  targetLexeme   Lexeme @relation("LexemeTranslationTarget", fields: [targetLexemeId], references: [id], onDelete: Cascade)
+  relationType   String @default("translation")
+  confidence     Float?
+  notes          String?
+
+  @@unique([sourceLexemeId, targetLexemeId, relationType])
+  @@index([targetLexemeId])
+}
+
+model TokenAnnotation {
+  id                 String   @id @default(uuid())
+  textUnitId         String
+  textUnit           TextUnit @relation(fields: [textUnitId], references: [id], onDelete: Cascade)
+  tokenOrder         Int
+  text               String
+  normalized         String
+  startOffset        Int?
+  endOffset          Int?
+  lexemeId           String?
+  lexeme             Lexeme?  @relation(fields: [lexemeId], references: [id], onDelete: SetNull)
+  partOfSpeech       String?
+  morphologicalFeatures Json?
+  dependencyRelation String?
+  headTokenOrder     Int?
+  isSlang            Boolean  @default(false)
+  contextNote        String?
+  createdAt          DateTime @default(now())
+
+  @@unique([textUnitId, tokenOrder])
+  @@index([lexemeId])
+}
+
+model GrammarAnnotation {
+  id              String   @id @default(uuid())
+  textUnitId      String
+  textUnit        TextUnit @relation(fields: [textUnitId], references: [id], onDelete: Cascade)
+  category        String
+  label           String
+  value           String?
+  startTokenOrder Int?
+  endTokenOrder   Int?
+  features        Json?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([textUnitId, category])
+}
+
+model SourceRecord {
+  id           String              @id @default(uuid())
+  title        String
+  sourceType   String              @default("community")
+  author       String?
+  url          String?
+  license      String?
+  citation     String?
+  metadata     Json?
+  texts        TextSource[]
+  translations TranslationSource[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model TextSource {
+  id         String       @id @default(uuid())
+  textUnitId String
+  sourceId   String
+  textUnit   TextUnit     @relation(fields: [textUnitId], references: [id], onDelete: Cascade)
+  source     SourceRecord @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  externalRef String?
+  collectedAt DateTime    @default(now())
+
+  @@unique([textUnitId, sourceId])
+  @@index([sourceId])
+}
+
+model TranslationSource {
+  id            String       @id @default(uuid())
+  translationId String
+  sourceId      String
+  translation   Translation  @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  source        SourceRecord @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  externalRef   String?
+  collectedAt   DateTime     @default(now())
+
+  @@unique([translationId, sourceId])
+  @@index([sourceId])
+}
+
+model Dataset {
+  id          String        @id @default(uuid())
+  name        String
+  version     String        @default("1.0")
+  description String?
+  license     String?
+  items       DatasetItem[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([name, version])
+}
+
+model DatasetItem {
+  id            String      @id @default(uuid())
+  datasetId     String
+  translationId String
+  dataset       Dataset     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  translation   Translation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  split         String      @default("unassigned")
+  weight        Float       @default(1)
+  labels        Json?
+  createdAt     DateTime    @default(now())
+
+  @@unique([datasetId, translationId])
+  @@index([datasetId, split])
+}
+
+model TranslationVote {
+  id            String      @id @default(uuid())
+  translationId String
+  translation   Translation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  userId        String?
+  ipAddress     String
+  type          String
+  createdAt     DateTime    @default(now())
+
+  @@unique([translationId, ipAddress])
+  @@index([translationId])
 }

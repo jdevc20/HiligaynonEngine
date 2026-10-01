@@ -1,30 +1,31 @@
 {
   "info": {
-    "name": "Hiligaynon Sentence API",
+    "name": "Open Hiligaynon Linguistic Engine API",
     "_postman_id": "8b2c3f5a-1111-4444-9999-abcdef123456",
-    "description": "CRUD API for sentences (English - Hiligaynon)",
+    "description": "Translation corpus compatibility API plus dictionary, linguistic analysis, and dataset export endpoints.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Get All Sentences",
+      "name": "List Translations",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/sentences?page=1&limit=50&search=",
+          "raw": "{{baseUrl}}/sentences?page=1&limit=50&search=&status=verified",
           "host": ["{{baseUrl}}"],
           "path": ["sentences"],
           "query": [
             { "key": "page", "value": "1" },
             { "key": "limit", "value": "50" },
-            { "key": "search", "value": "" }
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "verified" }
           ]
         }
       }
     },
     {
-      "name": "Get Sentence By ID",
+      "name": "Get Translation By ID",
       "request": {
         "method": "GET",
         "header": [],
@@ -36,18 +37,15 @@
       }
     },
     {
-      "name": "Create Sentence",
+      "name": "Create Translation",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "Content-Type", "value": "application/json" }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"english\": \"Good morning\",\n  \"hiligaynon\": \"Maayong aga\"\n}"
+          "raw": "{\n  \"english\": \"Where are you going?\",\n  \"hiligaynon\": \"Diin ka makadto?\",\n  \"sentiment\": 1,\n  \"intent\": \"location_question\",\n  \"domain\": \"daily_life\",\n  \"status\": \"pending\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/sentences",
@@ -57,7 +55,86 @@
       }
     },
     {
-      "name": "Delete Sentence",
+      "name": "Update Translation",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"verified\",\n  \"confidence\": 0.95\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/sentences/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["sentences", ":id"]
+        }
+      }
+    },
+    {
+      "name": "Vote On Translation",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sentenceId\": \"translation-id\",\n  \"type\": \"UP\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/sentences/vote",
+          "host": ["{{baseUrl}}"],
+          "path": ["sentences", "vote"]
+        }
+      }
+    },
+    {
+      "name": "Dictionary Lookup",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/engine/dictionary?q=gid&language=hil",
+          "host": ["{{baseUrl}}"],
+          "path": ["engine", "dictionary"],
+          "query": [
+            { "key": "q", "value": "gid" },
+            { "key": "language", "value": "hil" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Text Unit Analysis",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/engine/text-units/:id/analysis",
+          "host": ["{{baseUrl}}"],
+          "path": ["engine", "text-units", ":id", "analysis"]
+        }
+      }
+    },
+    {
+      "name": "Export Training Split",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/engine/datasets/sample-dataset-v1/export?split=train",
+          "host": ["{{baseUrl}}"],
+          "path": ["engine", "datasets", "sample-dataset-v1", "export"],
+          "query": [
+            { "key": "split", "value": "train" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Delete Translation",
       "request": {
         "method": "DELETE",
         "header": [],
