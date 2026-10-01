@@ -93,3 +93,150 @@ export const datasetExport = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+export const generateDataset = async (req: Request, res: Response) => {
+  try {
+    const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+    const version =
+      typeof req.body.version === "string" ? req.body.version.trim() : "1.0";
+    const description =
+      typeof req.body.description === "string" && req.body.description.trim()
+        ? req.body.description.trim()
+        : null;
+    const license =
+      typeof req.body.license === "string" && req.body.license.trim()
+        ? req.body.license.trim()
+        : null;
+    const domain =
+      typeof req.body.domain === "string" && req.body.domain.trim()
+        ? req.body.domain.trim()
+        : undefined;
+    const register =
+      typeof req.body.register === "string" && req.body.register.trim()
+        ? req.body.register.trim()
+        : undefined;
+
+    const minConfidence =
+      req.body.minConfidence === undefined ||
+      req.body.minConfidence === null ||
+      req.body.minConfidence === ""
+        ? undefined
+        : Number(req.body.minConfidence);
+
+    const maxItems =
+      req.body.maxItems === undefined ||
+      req.body.maxItems === null ||
+      req.body.maxItems === ""
+        ? 10000
+        : Number(req.body.maxItems);
+
+    const trainPercent =
+      req.body.trainPercent === undefined ? 80 : Number(req.body.trainPercent);
+    const validationPercent =
+      req.body.validationPercent === undefined
+        ? 10
+        : Number(req.body.validationPercent);
+    const testPercent =
+      req.body.testPercent === undefined ? 10 : Number(req.body.testPercent);
+
+    const excludeSarcastic = req.body.excludeSarcastic !== false;
+    const requireProvenance = req.body.requireProvenance === true;
+
+    if (!name) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "Dataset name is required.",
+      });
+    }
+
+    if (!version) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "Dataset version is required.",
+      });
+    }
+
+    if (
+      minConfidence !== undefined &&
+      (Number.isNaN(minConfidence) ||
+        minConfidence < 0 ||
+        minConfidence > 1)
+    ) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "Minimum confidence must be between 0 and 1.",
+      });
+    }
+
+    if (
+      !Number.isInteger(maxItems) ||
+      maxItems < 1 ||
+      maxItems > 100000
+    ) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: "Maximum records must be an integer between 1 and 100000.",
+      });
+    }
+
+    const percentages = [trainPercent, validationPercent, testPercent];
+
+    if (
+      percentages.some(
+        (value) =>
+          Number.isNaN(value) ||
+          value < 0 ||
+          value > 100
+      ) ||
+      trainPercent + validationPercent + testPercent !== 100
+    ) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details:
+          "Train, validation, and test percentages must each be between 0 and 100 and total exactly 100.",
+      });
+    }
+
+    const data = await engineService.generateDataset({
+      name,
+      version,
+      description,
+      license,
+      domain,
+      register,
+      minConfidence,
+      maxItems,
+      excludeSarcastic,
+      requireProvenance,
+      trainPercent,
+      validationPercent,
+      testPercent,
+    });
+
+    if (!data) {
+      return res.status(422).json({
+        error: "No eligible translations",
+        details:
+          "No verified translations matched the selected dataset filters.",
+      });
+    }
+
+    return res.status(201).json({ data });
+  } catch (error: any) {
+    console.error("[generateDataset Error]:", error);
+
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        error: "Dataset already exists",
+        details:
+          "A dataset with the same name and version already exists. Choose a new version.",
+      });
+    }
+
+    return res.status(500).json({
+      error: "Dataset generation failed",
+      details: error?.message || "An unexpected error occurred.",
+    });
+  }
+};
